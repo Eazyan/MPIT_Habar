@@ -83,18 +83,23 @@ async def analyzer_node(state: AgentState) -> AgentState:
     Task:
     1. Extract key facts, quotes, and summary.
     2. Determine sentiment specifically towards the BRAND (if mentioned) or the market.
-    3. Decide on a PR Verdict: Should we respond? Ignore? Newsjack?
-    4. Provide a Relevance Score (0-100).
-    5. Provide 3 actionable TIPS on how to execute this strategy (e.g. "Use humor", "Focus on data", "Avoid conflict").
+    86. Decide on a PR Verdict: Should we respond? Ignore? Newsjack?
+    87. Provide a Relevance Score (0-100). CRITICAL: Calculate based on:
+        - Direct Brand Mention: +40
+        - Market Impact: +30
+        - Urgency: +30
+        (Explain calculation in reasoning if needed)
+    88. Provide 3 actionable TIPS on how to execute this strategy.
     
     IMPORTANT: Output MUST be valid JSON matching the schema. All text fields in RUSSIAN.
+    Sentiment MUST be one of: "Позитивная", "Негативная", "Нейтральная".
     
     Schema:
     {{
         "summary": "string (in Russian)",
         "facts": ["string (in Russian)"],
         "quotes": ["string (in Russian)"],
-        "sentiment": "positive|negative|neutral",
+        "sentiment": "Позитивная|Негативная|Нейтральная",
         "topics": ["string (in Russian)"],
         "relevance_score": 0-100,
         "pr_verdict": "Отвечать|Игнорировать|Мониторить|Ньюсджекинг",

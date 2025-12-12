@@ -45,8 +45,22 @@ def writer_node(state: AgentState) -> AgentState:
         llm = get_llm()
         
         for platform in platforms:
+            # Define specific constraints per platform
+            if platform in [Platform.EMAIL, Platform.PRESS_RELEASE]:
+                style_guide = "STRICTLY FORMAL. NO EMOJIS. NO MARKDOWN HEADERS (like ## Hook). Standard business document format."
+            else:
+                style_guide = "Engaging social media style. Emojis allowed. NO MARKDOWN HEADERS (like ## Hook). The text must be ready to copy-paste and publish."
+
             prompt = f"""
-            Write a HIGH-QUALITY content piece for {platform.value.upper()} in RUSSIAN.
+            YOU ARE THE OFFICIAL VOICE OF THE BRAND: {analysis.summary} (Brand Name inferred from context).
+            
+            CRITICAL RULES:
+            1. **Perspective**: Write AS THE BRAND. Do NOT write as a blogger, journalist, or fan.
+               - BAD: "I have hot info...", "Rumors say...", "If this is true..."
+               - GOOD: "We are proud to introduce...", "Our vision is...", "Experience the future with..."
+            2. **Grounding**: Base your content strictly on the provided facts. Do not hallucinate "leaks" if the news is about a release.
+            3. **Tone**: Confident, professional, but adapted to the platform.
+               - If comparing with competitors: Highlight OUR advantages with dignity. Do not bash. Be superior but respectful.
             
             Analysis:
             - Summary: {analysis.summary}
@@ -58,38 +72,41 @@ def writer_node(state: AgentState) -> AgentState:
             {context_str}
             
             Platform Strategy:
-            - TELEGRAM: Short, "inside" info, emojis, clear CTA.
-            - VK: Engaging storytelling, community focus, hashtags.
-            - TENCHAT: Professional, business value, networking focus.
-            - VC: Blog post style, "How we did it", industry insights.
-            - DZEN: Educational, catchy headline, broad audience.
-            - EMAIL: Internal report for the boss. Concise, impact analysis.
-            - PRESS_RELEASE: Formal, third-person, official quote.
+            - TELEGRAM: Official channel tone. Short, informative, clear value.
+            - VK: Community engagement, official announcements.
+            - TENCHAT: Professional insights, business impact.
+            - VC: Corporate blog. Deep dive into technology/strategy.
+            - DZEN: Brand media. Educational and inspiring.
+            - EMAIL: Internal executive brief. "Here is the situation and our stance."
+            - PRESS_RELEASE: Standard official press release format.
             
-            REQUIRED STRUCTURE:
-            1. 🎣 **Hook/Headline**: Catchy title.
-            2. 📝 **Body**: The main content.
-            3. 🖼️ **Image Prompt**: A creative prompt for AI image generator (in English).
-            4. #️⃣ **Hashtags**: (If applicable).
+            Style Guide: {style_guide}
             
-            Output ONLY the post text. Ensure the main text is in RUSSIAN.
+            REQUIRED OUTPUT FORMAT:
+            1. The output must be ONLY the final post text.
+            2. Do NOT include "Subject:", "Hook:", "Body:", "Image Prompt:" labels.
+            3. Do NOT include the Image Prompt in the text.
+            
+            At the very end, strictly separated by "|||", provide the Image Prompt in English.
             """
             
             messages = [
-                SystemMessage(content=f"You are a top-tier PR & Content Manager for {platform.value}. You write in fluent, engaging Russian."),
+                SystemMessage(content=f"You are the Head of Communications for the brand. You speak with authority, precision, and brand alignment."),
                 HumanMessage(content=prompt)
             ]
             
             response = llm.invoke(messages)
             
-            # Extract Image Prompt if possible (simple heuristic)
-            content = response.content
+            # Parse content and image prompt
+            full_content = response.content
+            content = full_content
             image_prompt = "Abstract modern technology, 4k, digital art" # Default
             
-            if "Image Prompt:" in content:
-                parts = content.split("Image Prompt:")
+            if "|||" in full_content:
+                parts = full_content.split("|||")
+                content = parts[0].strip()
                 if len(parts) > 1:
-                    image_prompt = parts[1].split("\n")[0].strip()
+                    image_prompt = parts[1].strip()
             
             posts.append(GeneratedPost(
                 platform=platform,

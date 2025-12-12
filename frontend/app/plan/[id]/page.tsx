@@ -12,11 +12,28 @@ export default function PlanPage({ params }: { params: { id: string } }) {
     const [plan, setPlan] = useState<any>(null);
 
     useEffect(() => {
-        const saved = localStorage.getItem('lastPlan');
-        if (saved) {
-            setPlan(JSON.parse(saved));
+        // Try to find the plan in history first
+        const history = JSON.parse(localStorage.getItem('plansHistory') || '[]');
+        const found = history.find((p: any) => p.id === params.id);
+
+        if (found) {
+            setPlan(found);
+        } else {
+            // Fallback to lastPlan if not found in history (e.g. direct link to very fresh generation)
+            const saved = localStorage.getItem('lastPlan');
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                if (parsed.id === params.id) {
+                    setPlan(parsed);
+                } else {
+                    // If ID doesn't match lastPlan either, we might want to show an error or just load lastPlan as a last resort
+                    // For now, let's load lastPlan but warn console
+                    console.warn("Plan ID mismatch, loading last available plan");
+                    setPlan(parsed);
+                }
+            }
         }
-    }, []);
+    }, [params.id]);
 
     if (!plan) return <div className="min-h-screen flex items-center justify-center text-white">Загрузка...</div>;
 
@@ -67,7 +84,7 @@ export default function PlanPage({ params }: { params: { id: string } }) {
                                 </div>
                             </div>
                             <div className="text-right">
-                                <div className="text-xs text-gray-400 uppercase tracking-wider mb-1">Relevance Score</div>
+                                <div className="text-xs text-gray-400 uppercase tracking-wider mb-1">Важность</div>
                                 <div className="text-2xl font-bold text-white">{plan.analysis.relevance_score || 0}/100</div>
                             </div>
                         </div>
@@ -91,12 +108,15 @@ export default function PlanPage({ params }: { params: { id: string } }) {
                             </div>
                         )}
 
-                        <div className="flex gap-2 flex-wrap">
-                            <span className="text-xs bg-white/10 text-gray-300 px-2 py-1 rounded-md">
-                                Sentiment: {plan.analysis.sentiment}
+                        <div className="flex gap-2 flex-wrap mt-4">
+                            <span className={`text-xs px-2 py-1 rounded-md border ${plan.analysis.sentiment?.toLowerCase().includes('позитив') ? 'bg-green-500/10 border-green-500/30 text-green-300' :
+                                plan.analysis.sentiment?.toLowerCase().includes('негатив') ? 'bg-red-500/10 border-red-500/30 text-red-300' :
+                                    'bg-gray-500/10 border-gray-500/30 text-gray-300'
+                                }`}>
+                                {plan.analysis.sentiment}
                             </span>
                             {plan.analysis.facts.slice(0, 3).map((fact: string, i: number) => (
-                                <span key={i} className="text-xs bg-blue-500/20 text-blue-200 px-2 py-1 rounded-md truncate max-w-[200px]">
+                                <span key={i} className="text-xs bg-blue-500/10 border border-blue-500/30 text-blue-200 px-2 py-1 rounded-md truncate max-w-full">
                                     {fact}
                                 </span>
                             ))}
