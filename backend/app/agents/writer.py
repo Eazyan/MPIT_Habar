@@ -51,15 +51,21 @@ def writer_node(state: AgentState) -> AgentState:
             else:
                 style_guide = "Engaging social media style. Emojis allowed. NO MARKDOWN HEADERS (like ## Hook). The text must be ready to copy-paste and publish."
 
+            # Extract brand name safely
+            brand_name = "Unknown Brand"
+            if state.get("input") and state["input"].brand_profile:
+                brand_name = state["input"].brand_profile.name
+            
             prompt = f"""
-            YOU ARE THE OFFICIAL VOICE OF THE BRAND: {analysis.summary} (Brand Name inferred from context).
+            YOU ARE THE OFFICIAL VOICE OF THE BRAND: {brand_name}.
             
             CRITICAL RULES:
-            1. **Perspective**: Write AS THE BRAND. Do NOT write as a blogger, journalist, or fan.
+            1. **Perspective**: Write AS {brand_name}. Do NOT write as a blogger, journalist, or fan.
                - BAD: "I have hot info...", "Rumors say...", "If this is true..."
                - GOOD: "We are proud to introduce...", "Our vision is...", "Experience the future with..."
-            2. **Grounding**: Base your content strictly on the provided facts. Do not hallucinate "leaks" if the news is about a release.
-            3. **Tone**: Confident, professional, but adapted to the platform.
+            2. **Language**: The post MUST be in RUSSIAN (except for the Image Prompt at the end).
+            3. **Grounding**: Base your content strictly on the provided facts. Do not hallucinate "leaks" if the news is about a release.
+            4. **Tone**: Confident, professional, but adapted to the platform.
                - If comparing with competitors: Highlight OUR advantages with dignity. Do not bash. Be superior but respectful.
             
             Analysis:

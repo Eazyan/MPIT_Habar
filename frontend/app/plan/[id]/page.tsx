@@ -2,7 +2,7 @@
 
 import { GlassCard } from "@/components/ui/glass-card";
 import { motion } from "framer-motion";
-import { ArrowLeft, Share2, Copy, Check, Download, ExternalLink, AlertTriangle, CheckCircle, Eye, Send } from "lucide-react";
+import { ArrowLeft, Share2, Copy, Check, Download, ExternalLink, AlertTriangle, CheckCircle, Eye, Send, RefreshCw } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect } from "react";
 
@@ -10,6 +10,7 @@ export default function PlanPage({ params }: { params: { id: string } }) {
     const [activeTab, setActiveTab] = useState("telegram");
     const [copied, setCopied] = useState(false);
     const [plan, setPlan] = useState<any>(null);
+    const [regenerating, setRegenerating] = useState(false);
 
     useEffect(() => {
         // Try to find the plan in history first
@@ -44,6 +45,49 @@ export default function PlanPage({ params }: { params: { id: string } }) {
             navigator.clipboard.writeText(activePost.content);
             setCopied(true);
             setTimeout(() => setCopied(false), 2000);
+        }
+    };
+
+    const handleRegenerate = async () => {
+        if (!activePost || regenerating) return;
+        setRegenerating(true);
+
+        try {
+            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/regenerate`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    plan_id: plan.id,
+                    platform: activeTab,
+                    original_news: plan.original_news,
+                    analysis: plan.analysis,
+                    current_content: activePost.content
+                })
+            });
+
+            if (!res.ok) throw new Error("Regeneration failed");
+
+            const newPost = await res.json();
+
+            // Update plan state
+            const updatedPosts = plan.posts.map((p: any) =>
+                p.platform === activeTab ? newPost : p
+            );
+            const updatedPlan = { ...plan, posts: updatedPosts };
+
+            setPlan(updatedPlan);
+
+            // Update localStorage
+            localStorage.setItem('lastPlan', JSON.stringify(updatedPlan));
+            const history = JSON.parse(localStorage.getItem('plansHistory') || '[]');
+            const updatedHistory = history.map((p: any) => p.id === plan.id ? updatedPlan : p);
+            localStorage.setItem('plansHistory', JSON.stringify(updatedHistory));
+
+        } catch (error) {
+            console.error(error);
+            alert("Ошибка регенерации");
+        } finally {
+            setRegenerating(false);
         }
     };
 
@@ -163,6 +207,14 @@ export default function PlanPage({ params }: { params: { id: string } }) {
                                 />
                             </div>
                             <div className="flex justify-end pt-4 border-t border-white/10">
+                                <button
+                                    onClick={handleRegenerate}
+                                    disabled={regenerating}
+                                    className="flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 text-sm font-medium transition-colors mr-2 disabled:opacity-50"
+                                >
+                                    <RefreshCw className={`w-4 h-4 ${regenerating ? 'animate-spin' : ''}`} />
+                                    {regenerating ? "Генерация..." : "Переписать"}
+                                </button>
                                 <button
                                     onClick={handleCopy}
                                     className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-white text-sm font-medium transition-colors"

@@ -49,3 +49,10 @@ class MediaPlan(BaseModel):
     original_news: NewsInput
     analysis: NewsAnalysis
     posts: List[GeneratedPost]
+
+class RegenerateRequest(BaseModel):
+    plan_id: str
+    platform: Platform
+    original_news: NewsInput
+    analysis: NewsAnalysis
+    current_content: Optional[str] = None
