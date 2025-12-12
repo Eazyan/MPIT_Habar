@@ -1,0 +1,78 @@
+version: '3.8'
+
+services:
+  backend:
+    build: ./backend
+    container_name: newsmaker_backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+    env_file:
+      - .env
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - CHROMA_DB_HOST=chromadb
+      - CHROMA_DB_PORT=8000
+    depends_on:
+      - redis
+      - chromadb
+    networks:
+      - newsmaker_net
+
+  frontend:
+    build: ./frontend
+    container_name: newsmaker_frontend
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    command: npm run dev
+    env_file:
+      - .env
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - NODE_ENV=development
+    networks:
+      - newsmaker_net
+
+  bot:
+    build: ./bot
+    container_name: newsmaker_bot
+    volumes:
+      - ./bot:/app
+    env_file:
+      - .env
+    environment:
+      - BOT_TOKEN=${BOT_TOKEN}
+      - BACKEND_URL=http://backend:8000
+    depends_on:
+      - backend
+    networks:
+      - newsmaker_net
+
+  redis:
+    image: redis:alpine
+    container_name: newsmaker_redis
+    ports:
+      - "6379:6379"
+    networks:
+      - newsmaker_net
+
+  chromadb:
+    image: chromadb/chroma:latest
+    container_name: newsmaker_chromadb
+    ports:
+      - "8001:8000"
+    volumes:
+      - chroma_data:/chroma/chroma
+    networks:
+      - newsmaker_net
+
+networks:
+  newsmaker_net:
+    driver: bridge
+
+volumes:
+  chroma_data:

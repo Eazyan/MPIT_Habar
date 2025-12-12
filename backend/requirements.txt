@@ -1,0 +1,12 @@
+fastapi
+uvicorn
+langchain
+langgraph
+chromadb
+redis
+httpx
+pydantic
+python-dotenv
+beautifulsoup4
+langchain-anthropic
+tavily-python
