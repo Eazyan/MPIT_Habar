@@ -9,6 +9,8 @@ export const metadata: Metadata = {
   description: "Autonomous PR Agent",
 };
 
+import { AuthProvider } from "@/lib/auth-context";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -17,7 +19,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={inter.className}>
-        {children}
+        <AuthProvider>{children}</AuthProvider>
       </body>
     </html>
   );

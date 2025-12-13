@@ -15,14 +15,14 @@ class StorageClient:
         self.history_bucket = "history"
         self.rag_bucket = "rag-knowledge"
 
-    def save_generation(self, plan_id: str, data: dict):
+    def save_generation(self, user_id: int, plan_id: str, data: dict):
         """Saves the full generation data to the history bucket."""
         try:
             # Save JSON
             json_data = json.dumps(data, ensure_ascii=False, default=str).encode('utf-8')
             self.client.put_object(
                 self.history_bucket,
-                f"{plan_id}/data.json",
+                f"users/{user_id}/plans/{plan_id}/data.json",
                 io.BytesIO(json_data),
                 len(json_data),
                 content_type="application/json"
@@ -32,38 +32,39 @@ class StorageClient:
             print(f"MinIO Save Error: {e}")
             return False
 
-    def promote_to_rag(self, plan_id: str, category: str = "ROUTINE"):
+    def promote_to_rag(self, user_id: int, plan_id: str, category: str = "ROUTINE"):
         """Copies data from history bucket to rag-knowledge bucket with categorization."""
         from minio.commonconfig import CopySource
         try:
-            # Copy JSON to categorized folder
+            # Copy JSON to categorized folder (kept global for now, or per user?)
+            # Valid question: Is knowledge base shared? 
+            # For now, let's keep knowledge base somewhat global but maybe tag it?
+            # Actually, per user isolation requested: 
             self.client.copy_object(
                 self.rag_bucket,
-                f"{category}/{plan_id}/data.json",
-                CopySource(self.history_bucket, f"{plan_id}/data.json")
+                f"users/{user_id}/{category}/{plan_id}/data.json",
+                CopySource(self.history_bucket, f"users/{user_id}/plans/{plan_id}/data.json")
             )
             return True
         except Exception as e:
             print(f"MinIO Promote Error: {e}")
             return False
-        except Exception as e:
-            print(f"MinIO Promote Error: {e}")
-            return False
 
-    def get_generation(self, plan_id: str) -> dict:
+    def get_generation(self, user_id: int, plan_id: str) -> dict:
         """Reads generation data from history bucket."""
         try:
-            response = self.client.get_object(self.history_bucket, f"{plan_id}/data.json")
+            response = self.client.get_object(self.history_bucket, f"users/{user_id}/plans/{plan_id}/data.json")
             return json.loads(response.read())
         except Exception as e:
             print(f"MinIO Read Error: {e}")
             return None
 
-    def list_generations(self, limit: int = 10) -> list:
+    def list_generations(self, user_id: int, limit: int = 10) -> list:
         """Lists recent generations from history bucket."""
         try:
-            # List all objects recursively
-            objects = list(self.client.list_objects(self.history_bucket, recursive=True))
+            # List objects with prefix
+            prefix = f"users/{user_id}/plans/"
+            objects = list(self.client.list_objects(self.history_bucket, prefix=prefix, recursive=True))
             
             # Filter for data.json files
             data_files = [obj for obj in objects if obj.object_name.endswith("data.json")]

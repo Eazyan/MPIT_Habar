@@ -6,6 +6,8 @@ import { Sparkles, Send, Link as LinkIcon, Settings, Radar, History, ArrowRight 
 import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { BrandSettings } from "@/components/brand-settings";
+import { useAuth } from "@/lib/auth-context";
+import { LogOut, User } from "lucide-react";
 
 export default function Home() {
   const [url, setUrl] = useState("");
@@ -17,63 +19,72 @@ export default function Home() {
   const [modelProvider, setModelProvider] = useState("claude");
 
   const router = useRouter();
+  const { isAuthenticated, isLoading, user, logout } = useAuth();
 
   useEffect(() => {
-    const saved = localStorage.getItem("brandProfile");
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      setBrandName(parsed.name);
+    if (!isLoading && !isAuthenticated) {
+      router.push("/auth/login");
     }
+  }, [isLoading, isAuthenticated, router]);
 
-    // Load history from Backend
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    // Load brand profile from API (user-specific)
+    const fetchBrandProfile = async () => {
+      try {
+        const { api } = await import("@/lib/api");
+        const res = await api.get("/auth/profile");
+        if (res.data && res.data.name) {
+          setBrandName(res.data.name);
+        } else {
+          setBrandName("");
+        }
+      } catch (e) {
+        console.error("Failed to fetch brand profile", e);
+        setBrandName("");
+      }
+    };
+
+    // Load history from Backend (using api client with auth token)
     const fetchHistory = async () => {
       try {
-        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/history`);
-        if (res.ok) {
-          const data = await res.json();
-          setRecentPlans(data);
-        }
+        const { api } = await import("@/lib/api");
+        const res = await api.get("/history");
+        setRecentPlans(res.data);
       } catch (e) {
         console.error("Failed to fetch history", e);
       }
     };
 
+    fetchBrandProfile();
     fetchHistory();
-  }, [showSettings]);
+  }, [showSettings, isAuthenticated]);
 
   const [scanResults, setScanResults] = useState<any[]>([]);
   const [showScanResults, setShowScanResults] = useState(false);
 
   const handleGenerate = async (mode: "link" | "monitoring") => {
     setLoading(true);
-
-    const savedProfile = localStorage.getItem("brandProfile");
-    const brandProfile = savedProfile ? JSON.parse(savedProfile) : null;
+    const { api } = await import("@/lib/api");
 
     if (mode === "monitoring") {
-      if (!brandProfile) {
+      if (!brandName) {
         alert("Сначала настройте профиль бренда!");
         setShowSettings(true);
         setLoading(false);
         return;
       }
 
-      // Run Scan
+      // Run Scan (backend uses user.brand_profile)
       try {
-        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/monitor/scan`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(brandProfile),
-        });
-
-        if (!res.ok) throw new Error('Scan failed');
-
-        const results = await res.json();
-        setScanResults(results);
+        const res = await api.post("/monitor/scan");
+        setScanResults(res.data);
         setShowScanResults(true);
-      } catch (error) {
+      } catch (error: any) {
         console.error(error);
-        alert("Ошибка сканирования");
+        const msg = error.response?.data?.detail || "Ошибка сканирования";
+        alert(msg);
       } finally {
         setLoading(false);
       }
@@ -84,27 +95,11 @@ export default function Home() {
     try {
       const payload = {
         url,
-        brand_profile: brandProfile,
         model_provider: modelProvider
       };
 
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/generate`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      });
-
-      if (!res.ok) throw new Error('Generation failed');
-
-      const data = await res.json();
-
-      // Save to history
-      const history = JSON.parse(localStorage.getItem('plansHistory') || '[]');
-      const newHistory = [data, ...history].slice(0, 10); // Keep last 10
-      localStorage.setItem('plansHistory', JSON.stringify(newHistory));
-      localStorage.setItem('lastPlan', JSON.stringify(data)); // Keep for backward compat if needed
+      const res = await api.post("/generate", payload);
+      const data = res.data;
 
       router.push(`/plan/${data.id}`);
 
@@ -119,32 +114,17 @@ export default function Home() {
   const handleSelectNews = async (newsItem: any) => {
     setLoading(true);
     setShowScanResults(false);
-
-    const savedProfile = localStorage.getItem("brandProfile");
-    const brandProfile = savedProfile ? JSON.parse(savedProfile) : null;
+    const { api } = await import("@/lib/api");
 
     try {
       const payload = {
         url: newsItem.url,
         text: newsItem.text, // Pass the text we found
-        brand_profile: brandProfile,
         model_provider: modelProvider
       };
 
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/generate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-
-      if (!res.ok) throw new Error('Generation failed');
-
-      const data = await res.json();
-
-      // Save to history
-      const history = JSON.parse(localStorage.getItem('plansHistory') || '[]');
-      const newHistory = [data, ...history].slice(0, 10);
-      localStorage.setItem('plansHistory', JSON.stringify(newHistory));
+      const res = await api.post("/generate", payload);
+      const data = res.data;
 
       router.push(`/plan/${data.id}`);
 
@@ -155,6 +135,10 @@ export default function Home() {
       setLoading(false);
     }
   };
+
+  if (isLoading || !isAuthenticated) {
+    return null; // Or a loading spinner
+  }
 
   return (
     <main className="min-h-screen p-6 flex flex-col relative overflow-hidden">
@@ -178,13 +162,33 @@ export default function Home() {
             </div>
           </div>
 
-          <button
-            onClick={() => setShowSettings(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-white transition-colors border border-white/10"
-          >
-            <Settings className="w-4 h-4" />
-            <span>{brandName || "Настроить Бренд"}</span>
-          </button>
+          <div className="flex items-center gap-3">
+            {/* Brand Settings Button */}
+            <button
+              onClick={() => setShowSettings(true)}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-white transition-colors border border-white/10"
+            >
+              <Settings className="w-4 h-4" />
+              <span>{brandName || "Настроить Бренд"}</span>
+            </button>
+
+            {/* User Menu */}
+            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/5 border border-white/10">
+              <User className="w-4 h-4 text-gray-400" />
+              <span className="text-sm text-white max-w-[120px] truncate">
+                {user?.full_name || user?.email || "Пользователь"}
+              </span>
+            </div>
+
+            {/* Logout Button */}
+            <button
+              onClick={logout}
+              className="p-2 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 transition-colors border border-red-500/20"
+              title="Выйти"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
+          </div>
         </header>
 
         {/* Dashboard Grid */}

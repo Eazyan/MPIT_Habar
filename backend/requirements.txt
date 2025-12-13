@@ -13,3 +13,9 @@ langchain-anthropic
 langchain-ollama
 tavily-python
 minio
+sqlalchemy
+psycopg2-binary
+python-jose[cryptography]
+bcrypt
+python-multipart
+pydantic-settings

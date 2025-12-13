@@ -4,7 +4,17 @@ from app.models import NewsInput, MediaPlan, NewsAnalysis, RegenerateRequest, Ge
 from app.agents.graph import app as agent_app
 import uuid
 
+from app.database import engine, Base
+from app.auth.router import router as auth_router, get_current_user
+from app.auth.models import User
+from fastapi import Depends
+
+# Create Tables
+Base.metadata.create_all(bind=engine)
+
 app = FastAPI()
+
+app.include_router(auth_router)
 
 app.add_middleware(
     CORSMiddleware,
@@ -19,19 +29,28 @@ def read_root():
     return {"Hello": "World", "Service": "AI-Newsmaker Backend"}
 
 @app.get("/history")
-async def get_history():
-    """Returns recent generations from MinIO."""
+async def get_history(user: User = Depends(get_current_user)):
+    """Returns recent generations from MinIO for the current user."""
     from app.storage import storage
-    return storage.list_generations(limit=12)
+    return storage.list_generations(user_id=user.id, limit=12)
+
+@app.get("/history/{plan_id}")
+async def get_plan(plan_id: str, user: User = Depends(get_current_user)):
+    """Returns a specific plan by ID for the current user."""
+    from app.storage import storage
+    data = storage.get_generation(user_id=user.id, plan_id=plan_id)
+    if not data:
+        raise HTTPException(status_code=404, detail="План не найден")
+    return data
 
 @app.post("/generate", response_model=MediaPlan)
-async def generate_plan(news: NewsInput):
+async def generate_plan(news: NewsInput, user: User = Depends(get_current_user)):
     """
     Triggers the AI Agent workflow to generate a media plan.
     """
     try:
-        # Run the LangGraph workflow
-        initial_state = {"input": news, "errors": []}
+        # Run the LangGraph workflow with user context
+        initial_state = {"input": news, "user_id": user.id, "errors": []}
         result = await agent_app.ainvoke(initial_state)
         
         if result.get("errors"):
@@ -49,9 +68,9 @@ async def generate_plan(news: NewsInput):
             posts=result["posts"]
         )
         
-        # Save to MinIO History
+        # Save to MinIO History (User specific)
         from app.storage import storage
-        storage.save_generation(plan.id, plan.dict())
+        storage.save_generation(user.id, plan.id, plan.dict())
         
         return plan
         
@@ -61,7 +80,7 @@ async def generate_plan(news: NewsInput):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/regenerate", response_model=GeneratedPost)
-async def regenerate_post(request: RegenerateRequest):
+async def regenerate_post(request: RegenerateRequest, user: User = Depends(get_current_user)):
     """
     Regenerates a single post for a specific platform.
     """
@@ -209,19 +228,26 @@ async def regenerate_post(request: RegenerateRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/monitor/scan", response_model=list[NewsInput])
-async def scan_news(profile: BrandProfile):
+async def scan_news(user: User = Depends(get_current_user)):
     """
-    Scans for recent news about the brand.
+    Scans for recent news about the brand using user's saved brand profile.
     """
     from app.agents.monitoring import search_brand_mentions
+    from app.models import BrandProfile
+    
+    if not user.brand_profile:
+        raise HTTPException(status_code=400, detail="Сначала настройте профиль бренда!")
+    
     try:
+        # Convert dict to BrandProfile model
+        profile = BrandProfile(**user.brand_profile)
         results = await search_brand_mentions(profile)
         return results
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/feedback")
-async def feedback(plan_id: str, like: bool):
+async def feedback(plan_id: str, like: bool, user: User = Depends(get_current_user)):
     """
     Handles user feedback. If like=True, promotes the case to RAG knowledge base.
     """
@@ -233,7 +259,7 @@ async def feedback(plan_id: str, like: bool):
         from app.rag.store import rag_store
         
         # 1. Get Data first to know the category
-        data = storage.get_generation(plan_id)
+        data = storage.get_generation(user.id, plan_id)
         if not data:
              raise HTTPException(status_code=404, detail="Plan not found in history")
 
@@ -241,7 +267,7 @@ async def feedback(plan_id: str, like: bool):
         category = data['analysis'].get('category', 'ROUTINE')
         
         # 2. Promote in MinIO (Copy from history to rag-knowledge/{category})
-        success = storage.promote_to_rag(plan_id, category)
+        success = storage.promote_to_rag(user.id, plan_id, category)
         if not success:
             raise HTTPException(status_code=500, detail="Failed to promote in Storage")
             
@@ -259,7 +285,8 @@ async def feedback(plan_id: str, like: bool):
             "plan_id": plan_id,
             "verdict": verdict,
             "category": category,
-            "bucket": "rag-knowledge"
+            "bucket": "rag-knowledge",
+            "user_id": user.id
         }
         
         rag_store.add_case(

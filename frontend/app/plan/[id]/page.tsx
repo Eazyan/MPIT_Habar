@@ -5,6 +5,8 @@ import { motion } from "framer-motion";
 import { ArrowLeft, Share2, Copy, Check, MessageSquare, AlertTriangle, Send, Heart, RefreshCw, Download, CheckCircle, Eye } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect } from "react";
+import { useAuth } from "@/lib/auth-context";
+import { useRouter } from "next/navigation";
 
 export default function PlanPage({ params }: { params: { id: string } }) {
     const [activeTab, setActiveTab] = useState("telegram");
@@ -13,29 +15,33 @@ export default function PlanPage({ params }: { params: { id: string } }) {
     const [regenerating, setRegenerating] = useState(false);
     const [imageLoading, setImageLoading] = useState(false);
 
-    useEffect(() => {
-        // Try to find the plan in history first
-        const history = JSON.parse(localStorage.getItem('plansHistory') || '[]');
-        const found = history.find((p: any) => p.id === params.id);
+    const { isAuthenticated, isLoading } = useAuth();
+    const router = useRouter();
 
-        if (found) {
-            setPlan(found);
-        } else {
-            // Fallback to lastPlan if not found in history (e.g. direct link to very fresh generation)
-            const saved = localStorage.getItem('lastPlan');
-            if (saved) {
-                const parsed = JSON.parse(saved);
-                if (parsed.id === params.id) {
-                    setPlan(parsed);
-                } else {
-                    // If ID doesn't match lastPlan either, we might want to show an error or just load lastPlan as a last resort
-                    // For now, let's load lastPlan but warn console
-                    console.warn("Plan ID mismatch, loading last available plan");
-                    setPlan(parsed);
-                }
-            }
+    useEffect(() => {
+        if (!isLoading && !isAuthenticated) {
+            router.push("/auth/login");
         }
-    }, [params.id]);
+    }, [isLoading, isAuthenticated, router]);
+
+    useEffect(() => {
+        if (!isAuthenticated) return;
+
+        // Fetch plan from API
+        const fetchPlan = async () => {
+            try {
+                const { api } = await import("@/lib/api");
+                const res = await api.get(`/history/${params.id}`);
+                setPlan(res.data);
+            } catch (e) {
+                console.error("Failed to load plan", e);
+                // Redirect to home if plan not found
+                router.push("/");
+            }
+        };
+
+        fetchPlan();
+    }, [params.id, isAuthenticated]);
 
     if (!plan) return <div className="min-h-screen flex items-center justify-center text-white">Загрузка...</div>;
 
@@ -49,6 +55,7 @@ export default function PlanPage({ params }: { params: { id: string } }) {
         if (!plan || imageLoading) return;
         const post = plan.posts[postIndex];
         setImageLoading(true);
+        const { api } = await import("@/lib/api");
 
         try {
             const payload = {
@@ -59,15 +66,8 @@ export default function PlanPage({ params }: { params: { id: string } }) {
                 current_content: post.content
             };
 
-            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/regenerate`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload),
-            });
-
-            if (!res.ok) throw new Error("Regeneration failed");
-
-            const newPostData = await res.json(); // Returns GeneratedPost with new image_url
+            const res = await api.post("/regenerate", payload);
+            const newPostData = res.data; // Returns GeneratedPost with new image_url
 
             // Update state
             const newPosts = [...plan.posts];
@@ -98,23 +98,18 @@ export default function PlanPage({ params }: { params: { id: string } }) {
     const handleRegenerate = async () => {
         if (!activePost || regenerating) return;
         setRegenerating(true);
+        const { api } = await import("@/lib/api");
 
         try {
-            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/regenerate`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    plan_id: plan.id,
-                    platform: activeTab,
-                    original_news: plan.original_news,
-                    analysis: plan.analysis,
-                    current_content: activePost.content
-                })
+            const res = await api.post("/regenerate", {
+                plan_id: plan.id,
+                platform: activeTab,
+                original_news: plan.original_news,
+                analysis: plan.analysis,
+                current_content: activePost.content
             });
 
-            if (!res.ok) throw new Error("Regeneration failed");
-
-            const newPost = await res.json();
+            const newPost = res.data;
 
             // Update plan state
             const updatedPosts = plan.posts.map((p: any) =>
@@ -334,7 +329,8 @@ export default function PlanPage({ params }: { params: { id: string } }) {
                                 <button
                                     onClick={async () => {
                                         try {
-                                            await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/feedback?plan_id=${plan.id}&like=true`, { method: 'POST' });
+                                            const { api } = await import("@/lib/api");
+                                            await api.post(`/feedback?plan_id=${plan.id}&like=true`);
                                             alert("Спасибо! Кейс сохранен в базу знаний.");
                                         } catch (e) {
                                             alert("Ошибка сохранения");
