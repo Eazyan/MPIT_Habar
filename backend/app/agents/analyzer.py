@@ -115,15 +115,15 @@ async def analyzer_node(state: AgentState) -> AgentState:
         - ROUTINE: General industry news, lists.
     89. Provide 3 actionable TIPS on how to execute this strategy.
     
-    IMPORTANT: Output MUST be valid JSON matching the schema. All text fields in RUSSIAN.
-    Sentiment MUST be one of: "Позитивная", "Негативная", "Нейтральная".
+    IMPORTANT: Output MUST be valid JSON matching the schema. All text fields in RUSSIAN (except 'sentiment').
+    Sentiment MUST be one of: "POSITIVE", "NEGATIVE", "NEUTRAL".
     
     Schema:
     {{
         "summary": "string (in Russian)",
         "facts": ["string (in Russian)"],
         "quotes": ["string (in Russian)"],
-        "sentiment": "Позитивная|Негативная|Нейтральная",
+        "sentiment": "POSITIVE|NEGATIVE|NEUTRAL",
         "topics": ["string (in Russian)"],
         "relevance_score": 0-100,
         "pr_verdict": "Отвечать|Игнорировать|Мониторить|Ньюсджекинг",

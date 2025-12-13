@@ -59,6 +59,22 @@ class StorageClient:
             print(f"MinIO Read Error: {e}")
             return None
 
+    def update_generation(self, user_id: int, plan_id: str, updates: dict) -> bool:
+        """Updates specific fields of a generation."""
+        try:
+            current_data = self.get_generation(user_id, plan_id)
+            if not current_data:
+                return False
+            
+            # Update fields
+            current_data.update(updates)
+            
+            # Save back
+            return self.save_generation(user_id, plan_id, current_data)
+        except Exception as e:
+            print(f"MinIO Update Error: {e}")
+            return False
+
     def list_generations(self, user_id: int, limit: int = 10) -> list:
         """Lists recent generations from history bucket."""
         try:

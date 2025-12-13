@@ -54,6 +54,7 @@ class MediaPlan(BaseModel):
     original_news: NewsInput
     analysis: NewsAnalysis
     posts: List[GeneratedPost]
+    liked: bool = False
 
 class RegenerateRequest(BaseModel):
     plan_id: str
