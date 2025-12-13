@@ -55,19 +55,44 @@ async def analyzer_node(state: AgentState) -> AgentState:
 
     # 2. Prepare Brand Context
     brand_profile = news_input.brand_profile
+    mode = state.get('mode', 'pr')
+    target_brand = state.get('target_brand')
+    
     brand_context = ""
-    if brand_profile:
-        brand_context = f"""
-        BRAND PROFILE:
-        Name: {brand_profile.name}
-        Description: {brand_profile.description}
-        Tone of Voice: {brand_profile.tone_of_voice}
-        Target Audience: {brand_profile.target_audience}
+    role_context = ""
+    
+    if mode == "blogger":
+        # Blogger mode: analyzing news about a target brand
+        brand_name = target_brand or "Unknown Brand"
+        role_context = f"""
+        YOUR ROLE: You are a tech/business BLOGGER analyzing news about {brand_name}.
+        You provide independent, objective analysis with your own opinion.
         """
+        if brand_profile:
+            brand_context = f"""
+            YOUR PERSONAL STYLE:
+            Tone of Voice: {brand_profile.tone_of_voice}
+            Target Audience: {brand_profile.target_audience}
+            """
+    else:
+        # PR mode: acting as the brand's voice
+        if brand_profile:
+            brand_context = f"""
+            BRAND PROFILE:
+            Name: {brand_profile.name}
+            Description: {brand_profile.description}
+            Tone of Voice: {brand_profile.tone_of_voice}
+            Target Audience: {brand_profile.target_audience}
+            """
+            role_context = f"YOUR ROLE: You are a PR Strategist for {brand_profile.name}."
+        else:
+            role_context = "YOUR ROLE: You are a PR Strategist."
 
     # 3. Analyze
     prompt = f"""
-    Analyze the following news text acting as a PR Strategist for the brand described below.
+    {role_context}
+    
+    Analyze the following news text.
     
     {brand_context}
     

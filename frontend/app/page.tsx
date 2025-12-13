@@ -17,6 +17,8 @@ export default function Home() {
   const [recentPlans, setRecentPlans] = useState<any[]>([]);
 
   const [modelProvider, setModelProvider] = useState("claude");
+  const [workMode, setWorkMode] = useState<"blogger" | "pr">("pr");
+  const [targetBrand, setTargetBrand] = useState("");
 
   const router = useRouter();
   const { isAuthenticated, isLoading, user, logout } = useAuth();
@@ -64,21 +66,28 @@ export default function Home() {
   const [scanResults, setScanResults] = useState<any[]>([]);
   const [showScanResults, setShowScanResults] = useState(false);
 
-  const handleGenerate = async (mode: "link" | "monitoring") => {
+  const handleGenerate = async (actionMode: "link" | "monitoring") => {
     setLoading(true);
     const { api } = await import("@/lib/api");
 
-    if (mode === "monitoring") {
-      if (!brandName) {
+    if (actionMode === "monitoring") {
+      // For blogger mode, need target brand; for PR mode, need profile
+      if (workMode === "blogger" && !targetBrand) {
+        alert("Введите название бренда для поиска!");
+        setLoading(false);
+        return;
+      }
+      if (workMode === "pr" && !brandName) {
         alert("Сначала настройте профиль бренда!");
         setShowSettings(true);
         setLoading(false);
         return;
       }
 
-      // Run Scan (backend uses user.brand_profile)
+      // Run Scan
       try {
-        const res = await api.post("/monitor/scan");
+        const scanParams = workMode === "blogger" ? { target_brand: targetBrand } : {};
+        const res = await api.post("/monitor/scan", null, { params: scanParams });
         setScanResults(res.data);
         setShowScanResults(true);
       } catch (error: any) {
@@ -95,7 +104,9 @@ export default function Home() {
     try {
       const payload = {
         url,
-        model_provider: modelProvider
+        model_provider: modelProvider,
+        mode: workMode,
+        target_brand: workMode === "blogger" ? targetBrand : undefined
       };
 
       const res = await api.post("/generate", payload);
@@ -119,8 +130,10 @@ export default function Home() {
     try {
       const payload = {
         url: newsItem.url,
-        text: newsItem.text, // Pass the text we found
-        model_provider: modelProvider
+        text: newsItem.text,
+        model_provider: modelProvider,
+        mode: workMode,
+        target_brand: workMode === "blogger" ? targetBrand : undefined
       };
 
       const res = await api.post("/generate", payload);
@@ -151,7 +164,7 @@ export default function Home() {
       <div className="max-w-5xl mx-auto w-full z-10 space-y-8">
 
         {/* Header */}
-        <header className="flex justify-between items-center">
+        <header className="flex justify-between items-center flex-wrap gap-3">
           <div className="flex items-center gap-3">
             <div className="p-2 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600">
               <Sparkles className="w-6 h-6 text-white" />
@@ -162,20 +175,11 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            {/* Brand Settings Button */}
-            <button
-              onClick={() => setShowSettings(true)}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-white transition-colors border border-white/10"
-            >
-              <Settings className="w-4 h-4" />
-              <span>{brandName || "Настроить Бренд"}</span>
-            </button>
-
-            {/* User Menu */}
-            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/5 border border-white/10">
+          <div className="flex items-center gap-2 md:gap-3">
+            {/* User Menu - compact on mobile */}
+            <div className="flex items-center gap-2 px-2 md:px-3 py-2 rounded-lg bg-white/5 border border-white/10">
               <User className="w-4 h-4 text-gray-400" />
-              <span className="text-sm text-white max-w-[120px] truncate">
+              <span className="text-sm text-white max-w-[80px] md:max-w-[120px] truncate hidden sm:inline">
                 {user?.full_name || user?.email || "Пользователь"}
               </span>
             </div>
@@ -190,6 +194,52 @@ export default function Home() {
             </button>
           </div>
         </header>
+
+        {/* Mode Toggle Bar */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-3 rounded-xl bg-white/5 border border-white/10">
+          {/* Mode Tabs */}
+          <div className="flex rounded-lg bg-black/30 p-1 w-full sm:w-auto">
+            <button
+              onClick={() => setWorkMode("blogger")}
+              className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${workMode === "blogger"
+                  ? "bg-gradient-to-r from-blue-600 to-blue-500 text-white shadow-lg shadow-blue-500/25"
+                  : "text-gray-400 hover:text-white hover:bg-white/5"
+                }`}
+            >
+              📝 Блогер
+            </button>
+            <button
+              onClick={() => setWorkMode("pr")}
+              className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${workMode === "pr"
+                  ? "bg-gradient-to-r from-purple-600 to-purple-500 text-white shadow-lg shadow-purple-500/25"
+                  : "text-gray-400 hover:text-white hover:bg-white/5"
+                }`}
+            >
+              🏢 PR-специалист
+            </button>
+          </div>
+
+          {/* Context Input - always same width to prevent jumping */}
+          <div className="flex-1 max-w-md">
+            {workMode === "blogger" ? (
+              <input
+                type="text"
+                placeholder="🔍 О каком бренде пишем? (Apple, Tesla...)"
+                value={targetBrand}
+                onChange={(e) => setTargetBrand(e.target.value)}
+                className="w-full bg-black/30 border border-white/10 rounded-lg px-4 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 transition-all"
+              />
+            ) : (
+              <button
+                onClick={() => setShowSettings(true)}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-black/30 hover:bg-white/5 text-white transition-colors border border-white/10"
+              >
+                <Settings className="w-4 h-4" />
+                <span className="truncate">{brandName || "Настроить профиль компании"}</span>
+              </button>
+            )}
+          </div>
+        </div>
 
         {/* Dashboard Grid */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

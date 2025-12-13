@@ -49,8 +49,14 @@ async def generate_plan(news: NewsInput, user: User = Depends(get_current_user))
     Triggers the AI Agent workflow to generate a media plan.
     """
     try:
-        # Run the LangGraph workflow with user context
-        initial_state = {"input": news, "user_id": user.id, "errors": []}
+        # Run the LangGraph workflow with user context and mode
+        initial_state = {
+            "input": news, 
+            "user_id": user.id, 
+            "mode": news.mode or "pr",
+            "target_brand": news.target_brand,
+            "errors": []
+        }
         result = await agent_app.ainvoke(initial_state)
         
         if result.get("errors"):
@@ -228,19 +234,31 @@ async def regenerate_post(request: RegenerateRequest, user: User = Depends(get_c
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/monitor/scan", response_model=list[NewsInput])
-async def scan_news(user: User = Depends(get_current_user)):
+async def scan_news(target_brand: str | None = None, user: User = Depends(get_current_user)):
     """
-    Scans for recent news about the brand using user's saved brand profile.
+    Scans for recent news about a brand.
+    - PR mode: uses user's saved brand profile
+    - Blogger mode: uses target_brand parameter
     """
     from app.agents.monitoring import search_brand_mentions
     from app.models import BrandProfile
     
-    if not user.brand_profile:
-        raise HTTPException(status_code=400, detail="Сначала настройте профиль бренда!")
+    if target_brand:
+        # Blogger mode: create temporary profile with just the name
+        profile = BrandProfile(
+            name=target_brand,
+            description="",
+            tone_of_voice="",
+            target_audience="",
+            keywords=[target_brand]
+        )
+    elif user.brand_profile:
+        # PR mode: use user's saved profile
+        profile = BrandProfile(**user.brand_profile)
+    else:
+        raise HTTPException(status_code=400, detail="Укажите бренд для поиска или настройте профиль!")
     
     try:
-        # Convert dict to BrandProfile model
-        profile = BrandProfile(**user.brand_profile)
         results = await search_brand_mentions(profile)
         return results
     except Exception as e:
