@@ -225,9 +225,10 @@ export default function Home() {
                   onChange={(e) => setModelProvider(e.target.value)}
                   className="bg-black/50 text-xs text-gray-300 border border-white/10 rounded-lg px-2 py-1 focus:outline-none focus:border-blue-500 cursor-pointer"
                 >
-                  <option value="claude">Claude 3.5 Sonnet</option>
+                  <option value="claude">Claude 4.5 Sonnet</option>
                   <option value="qwen">Qwen 2.5 (72B)</option>
                   <option value="deepseek">DeepSeek V3</option>
+                  <option value="ollama">Ollama (Local)</option>
                 </select>
               </div>
             </div>

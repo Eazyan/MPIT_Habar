@@ -48,6 +48,18 @@ def get_llm(model_provider: str = "claude"):
             base_url=base_url,
             temperature=0.7
         )
+        
+    elif model_provider == "ollama":
+        from langchain_ollama import ChatOllama
+        base_url = os.getenv("OLLAMA_BASE_URL", "http://host.docker.internal:11434")
+        # User specified model
+        model_name = "gpt-oss:20B" 
+        
+        return ChatOllama(
+            model=model_name,
+            base_url=base_url,
+            temperature=0.7
+        )
     
     else:
         # Default to Claude

@@ -10,5 +10,6 @@ python-dotenv
 beautifulsoup4
 langchain-openai
 langchain-anthropic
+langchain-ollama
 tavily-python
 minio
