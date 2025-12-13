@@ -14,6 +14,8 @@ export default function Home() {
   const [brandName, setBrandName] = useState("");
   const [recentPlans, setRecentPlans] = useState<any[]>([]);
 
+  const [modelProvider, setModelProvider] = useState("claude");
+
   const router = useRouter();
 
   useEffect(() => {
@@ -77,7 +79,11 @@ export default function Home() {
 
     // Link Mode Logic
     try {
-      const payload = { url, brand_profile: brandProfile };
+      const payload = {
+        url,
+        brand_profile: brandProfile,
+        model_provider: modelProvider
+      };
 
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/generate`, {
         method: 'POST',
@@ -118,7 +124,8 @@ export default function Home() {
       const payload = {
         url: newsItem.url,
         text: newsItem.text, // Pass the text we found
-        brand_profile: brandProfile
+        brand_profile: brandProfile,
+        model_provider: modelProvider
       };
 
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/generate`, {
@@ -208,6 +215,20 @@ export default function Home() {
                 >
                   {loading ? <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1 }} className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full" /> : <ArrowRight className="w-4 h-4" />}
                 </button>
+              </div>
+
+              {/* Model Selector */}
+              <div className="mt-4 flex items-center gap-2 relative z-50">
+                <span className="text-xs text-gray-500 uppercase tracking-wider">Нейросеть:</span>
+                <select
+                  value={modelProvider}
+                  onChange={(e) => setModelProvider(e.target.value)}
+                  className="bg-black/50 text-xs text-gray-300 border border-white/10 rounded-lg px-2 py-1 focus:outline-none focus:border-blue-500 cursor-pointer"
+                >
+                  <option value="claude">Claude 3.5 Sonnet</option>
+                  <option value="qwen">Qwen 2.5 (72B)</option>
+                  <option value="deepseek">DeepSeek V3</option>
+                </select>
               </div>
             </div>
           </GlassCard>

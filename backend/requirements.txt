@@ -8,6 +8,7 @@ httpx
 pydantic
 python-dotenv
 beautifulsoup4
+langchain-openai
 langchain-anthropic
 tavily-python
 minio

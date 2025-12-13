@@ -19,11 +19,6 @@ class BrandProfile(BaseModel):
     target_audience: str = Field(..., description="Целевая аудитория")
     keywords: List[str] = Field(default=[], description="Ключевые слова для мониторинга")
     examples: List[str] = Field(default=[], description="Примеры удачных постов (Few-Shot)")
-
-class NewsInput(BaseModel):
-    url: Optional[str] = None
-    text: Optional[str] = None
-    brand_profile: Optional[BrandProfile] = None # Context for analysis
     
 class NewsAnalysis(BaseModel):
     summary: str = Field(..., description="Краткая выжимка новости")
@@ -43,6 +38,12 @@ class GeneratedPost(BaseModel):
     image_prompt: Optional[str] = None
     image_url: Optional[str] = None
     status: str = "draft" # draft, approved, published
+
+class NewsInput(BaseModel):
+    url: Optional[str] = None
+    text: Optional[str] = None
+    model_provider: str = Field("claude", description="Модель: claude, qwen, deepseek")
+    brand_profile: Optional[BrandProfile] = None # Context for analysis
 
 class MediaPlan(BaseModel):
     id: str

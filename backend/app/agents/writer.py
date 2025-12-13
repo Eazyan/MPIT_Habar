@@ -1,18 +1,8 @@
 from langchain_core.messages import SystemMessage, HumanMessage
-from langchain_anthropic import ChatAnthropic
 from app.agents.state import AgentState
 from app.models import GeneratedPost, Platform
+from app.llm_factory import get_llm
 import os
-
-def get_llm():
-    api_key = os.getenv("ANTHROPIC_API_KEY")
-    if not api_key:
-        raise ValueError("ANTHROPIC_API_KEY is not set")
-    return ChatAnthropic(
-        model="claude-sonnet-4-20250514",
-        api_key=api_key,
-        temperature=0.7
-    )
 
 def writer_node(state: AgentState) -> AgentState:
     """Generates posts based on analysis and context."""
@@ -21,6 +11,9 @@ def writer_node(state: AgentState) -> AgentState:
     if state.get("errors"):
         return {"errors": state["errors"]}
         
+    # Get model provider from input
+    model_provider = state['input'].model_provider if state.get('input') else "claude"
+    
     analysis = state.get('analysis')
     if not analysis:
         return {"errors": ["No analysis found. Analyzer agent likely failed."]}
@@ -42,7 +35,7 @@ def writer_node(state: AgentState) -> AgentState:
     posts = []
     
     try:
-        llm = get_llm()
+        llm = get_llm(model_provider)
         
         # Extract brand name safely
         brand_name = "Unknown Brand"

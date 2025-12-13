@@ -1,28 +1,22 @@
 from langchain_core.messages import SystemMessage, HumanMessage
-from langchain_anthropic import ChatAnthropic
 from app.agents.state import AgentState
 from app.models import NewsAnalysis
 from app.utils.scraper import scrape_url
 from app.agents.monitoring import search_brand_mentions
-import os
+from app.llm_factory import get_llm
 import json
 import random
 
-def get_llm():
-    api_key = os.getenv("ANTHROPIC_API_KEY")
-    if not api_key:
-        raise ValueError("ANTHROPIC_API_KEY is not set")
-    return ChatAnthropic(
-        model="claude-sonnet-4-20250514",
-        api_key=api_key,
-        temperature=0
-    )
-
 async def analyzer_node(state: AgentState) -> AgentState:
-    """Analyzes the input news text with Brand Context."""
+    """Analyzes the news content."""
     print("--- ANALYZER AGENT ---")
+    
+    # Get model provider from input
+    model_provider = state['input'].model_provider if state.get('input') else "claude"
+    print(f"Using Model: {model_provider}")
+    
     try:
-        llm = get_llm()
+        llm = get_llm(model_provider)
     except ValueError as e:
         return {"errors": [str(e)]}
 
