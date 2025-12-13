@@ -167,13 +167,26 @@ export default function PlanPage({ params }: { params: { id: string } }) {
                         </div>
                     </GlassCard>
 
-                    <GlassCard className="flex flex-col justify-center items-center text-center p-6">
-                        <div className="w-16 h-16 rounded-full bg-green-500/20 flex items-center justify-center mb-4">
-                            <CheckCircle className="w-8 h-8 text-green-400" />
-                        </div>
-                        <div className="text-lg font-bold text-white">Готово к публикации</div>
-                        <div className="text-sm text-gray-400 mt-2">Контент адаптирован под 7 платформ</div>
-                    </GlassCard>
+                    {/* Status Card */}
+                    {(() => {
+                        const isIgnore = plan.analysis.pr_verdict?.toLowerCase().includes("игнор");
+                        const isLowScore = (plan.analysis.relevance_score || 0) < 30;
+                        const isNotRecommended = isIgnore || isLowScore;
+
+                        return (
+                            <GlassCard className={`flex flex-col justify-center items-center text-center p-6 border ${isNotRecommended ? 'border-yellow-500/30 bg-yellow-500/10' : 'border-green-500/30'}`}>
+                                <div className={`w-16 h-16 rounded-full flex items-center justify-center mb-4 ${isNotRecommended ? 'bg-yellow-500/20' : 'bg-green-500/20'}`}>
+                                    {isNotRecommended ? <AlertTriangle className="w-8 h-8 text-yellow-400" /> : <CheckCircle className="w-8 h-8 text-green-400" />}
+                                </div>
+                                <div className="text-lg font-bold text-white">
+                                    {isNotRecommended ? "Публикация не рекомендована" : "Готово к публикации"}
+                                </div>
+                                <div className="text-sm text-gray-400 mt-2">
+                                    {isIgnore ? "Вердикт: Игнорировать" : isLowScore ? "Низкая релевантность" : "Контент адаптирован под 7 платформ"}
+                                </div>
+                            </GlassCard>
+                        );
+                    })()}
                 </div>
 
                 {/* Content Generation Section */}

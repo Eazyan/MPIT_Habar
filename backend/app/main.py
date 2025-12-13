@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from app.models import NewsInput, MediaPlan, NewsAnalysis, RegenerateRequest, GeneratedPost
+from app.models import NewsInput, MediaPlan, NewsAnalysis, RegenerateRequest, GeneratedPost, Platform
 from app.agents.graph import app as agent_app
 import uuid
 
@@ -60,11 +60,45 @@ async def regenerate_post(request: RegenerateRequest):
         # Reconstruct context (simplified for single post)
         brand_name = request.original_news.brand_profile.name if request.original_news.brand_profile else "Brand"
         
-        # Determine style guide
-        if request.platform in ["email", "press_release"]:
-            style_guide = "STRICTLY FORMAL. NO EMOJIS. NO MARKDOWN HEADERS. Standard business document format."
+        # Determine style guide and structure based on platform
+        if request.platform == Platform.EMAIL:
+            style_guide = """
+            ФОРМАТ СЛУЖЕБНОЙ ЗАПИСКИ.
+            Структура:
+            Тема: [Четкая, побуждающая к действию тема]
+            Кому: [Целевые стейкхолдеры, например, Маркетинг, CEO]
+            Рекомендация: [Конкретный совет на основе анализа]
+            
+            Текст:
+            [Краткий анализ ситуации и обоснование позиции. Официально, но прямо.]
+            """
+        elif request.platform == Platform.PRESS_RELEASE:
+            style_guide = """
+            ФОРМАТ ОФИЦИАЛЬНОГО ПРЕСС-РЕЛИЗА.
+            Структура:
+            ДЛЯ НЕМЕДЛЕННОГО РАСПРОСТРАНЕНИЯ
+            
+            [ЗАГОЛОВОК: Прописными, Впечатляющий]
+            
+            [Город, Дата] — [Лид-абзац: Кто, что, когда, где, почему]
+            
+            [Основной текст: Детали, контекст, официальные цитаты]
+            
+            [О компании (справка)]
+            
+            Контакты для СМИ:
+            [Имя/Email]
+            """
+        elif request.platform == Platform.TELEGRAM:
+            style_guide = """
+            Telegram Channel Style.
+            - Use Markdown (*bold*, _italic_) for emphasis.
+            - Use Emojis 🚀.
+            - Short paragraphs.
+            - Call to Action (CTA) at the end.
+            """
         else:
-            style_guide = "Engaging social media style. Emojis allowed. NO MARKDOWN HEADERS. Ready to publish."
+            style_guide = "Engaging social media style. Emojis allowed. NO Markdown headers (like ##). Ready to publish."
 
         prompt = f"""
         YOU ARE THE OFFICIAL VOICE OF THE BRAND: {brand_name}.
@@ -77,13 +111,13 @@ async def regenerate_post(request: RegenerateRequest):
         - Sentiment: {request.analysis.sentiment}
         - PR Verdict: {request.analysis.pr_verdict}
         
-        Style Guide: {style_guide}
+        Style Guide: 
+        {style_guide}
         
         CRITICAL RULES:
         1. Write AS {brand_name}.
         2. Language: RUSSIAN.
-        3. NO Markdown headers (##).
-        4. NO "Subject:", "Body:" labels.
+        3. Follow the specific structure for {request.platform.value} defined above.
         
         At the very end, strictly separated by "|||", provide a NEW Image Prompt in English.
         """
@@ -119,5 +153,7 @@ async def regenerate_post(request: RegenerateRequest):
         )
         
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 

@@ -44,29 +44,54 @@ def writer_node(state: AgentState) -> AgentState:
     try:
         llm = get_llm()
         
+        # Extract brand name safely
+        brand_name = "Unknown Brand"
+        if state.get("input") and state["input"].brand_profile:
+            brand_name = state["input"].brand_profile.name
+
         for platform in platforms:
             # Define specific constraints per platform
-            if platform in [Platform.EMAIL, Platform.PRESS_RELEASE]:
-                style_guide = "STRICTLY FORMAL. NO EMOJIS. NO MARKDOWN HEADERS (like ## Hook). Standard business document format."
+            if platform == Platform.EMAIL:
+                style_guide = """
+                ФОРМАТ СЛУЖЕБНОЙ ЗАПИСКИ.
+                Структура:
+                Тема: [Четкая, побуждающая к действию тема]
+                Кому: [Целевые стейкхолдеры]
+                Рекомендация: [Конкретный совет]
+                
+                Текст:
+                [Краткий анализ ситуации и обоснование позиции. Официально, но прямо.]
+                """
+            elif platform == Platform.PRESS_RELEASE:
+                style_guide = """
+                ФОРМАТ ОФИЦИАЛЬНОГО ПРЕСС-РЕЛИЗА.
+                Структура:
+                ДЛЯ НЕМЕДЛЕННОГО РАСПРОСТРАНЕНИЯ
+                
+                [ЗАГОЛОВОК]
+                
+                [Город, Дата] — [Лид-абзац]
+                
+                [Основной текст]
+                
+                [О компании]
+                
+                Контакты для СМИ:
+                [Имя/Email]
+                """
+            elif platform == Platform.TELEGRAM:
+                style_guide = "Telegram Channel Style. Use Markdown (*bold*) and Emojis 🚀. Short paragraphs."
             else:
-                style_guide = "Engaging social media style. Emojis allowed. NO MARKDOWN HEADERS (like ## Hook). The text must be ready to copy-paste and publish."
+                style_guide = "Engaging social media style. Emojis allowed. NO Markdown headers. Ready to publish."
 
-            # Extract brand name safely
-            brand_name = "Unknown Brand"
-            if state.get("input") and state["input"].brand_profile:
-                brand_name = state["input"].brand_profile.name
-            
             prompt = f"""
             YOU ARE THE OFFICIAL VOICE OF THE BRAND: {brand_name}.
             
             CRITICAL RULES:
-            1. **Perspective**: Write AS {brand_name}. Do NOT write as a blogger, journalist, or fan.
-               - BAD: "I have hot info...", "Rumors say...", "If this is true..."
-               - GOOD: "We are proud to introduce...", "Our vision is...", "Experience the future with..."
-            2. **Language**: The post MUST be in RUSSIAN (except for the Image Prompt at the end).
-            3. **Grounding**: Base your content strictly on the provided facts. Do not hallucinate "leaks" if the news is about a release.
-            4. **Tone**: Confident, professional, but adapted to the platform.
-               - If comparing with competitors: Highlight OUR advantages with dignity. Do not bash. Be superior but respectful.
+            1. **Perspective**: Write AS {brand_name}.
+            2. **Language**: The post MUST be in RUSSIAN (except for the Image Prompt).
+            3. **Structure**: Follow the Style Guide for {platform.value} strictly.
+            4. **Grounding**: Base content on facts.
             
             Analysis:
             - Summary: {analysis.summary}
@@ -77,21 +102,12 @@ def writer_node(state: AgentState) -> AgentState:
             Brand Context:
             {context_str}
             
-            Platform Strategy:
-            - TELEGRAM: Official channel tone. Short, informative, clear value.
-            - VK: Community engagement, official announcements.
-            - TENCHAT: Professional insights, business impact.
-            - VC: Corporate blog. Deep dive into technology/strategy.
-            - DZEN: Brand media. Educational and inspiring.
-            - EMAIL: Internal executive brief. "Here is the situation and our stance."
-            - PRESS_RELEASE: Standard official press release format.
-            
             Style Guide: {style_guide}
             
             REQUIRED OUTPUT FORMAT:
-            1. The output must be ONLY the final post text.
-            2. Do NOT include "Subject:", "Hook:", "Body:", "Image Prompt:" labels.
-            3. Do NOT include the Image Prompt in the text.
+            1. Output ONLY the final post text.
+            2. For Email/Press Release, include the headers (Subject, Title) as part of the text.
+            3. Do NOT include "Image Prompt:" label.
             
             At the very end, strictly separated by "|||", provide the Image Prompt in English.
             """
