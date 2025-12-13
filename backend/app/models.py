@@ -11,6 +11,7 @@ class Platform(str, Enum):
     DZEN = "dzen"
     EMAIL = "email"
     PRESS_RELEASE = "press_release"
+    IMAGE = "image"
 
 class BrandProfile(BaseModel):
     name: str = Field(..., description="Название бренда")

@@ -2,7 +2,7 @@
 
 import { GlassCard } from "@/components/ui/glass-card";
 import { motion } from "framer-motion";
-import { ArrowLeft, Share2, Copy, Check, Download, ExternalLink, AlertTriangle, CheckCircle, Eye, Send, RefreshCw, Heart } from "lucide-react";
+import { ArrowLeft, Share2, Copy, Check, MessageSquare, AlertTriangle, Send, Heart, RefreshCw, Download, CheckCircle, Eye } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect } from "react";
 
@@ -11,6 +11,7 @@ export default function PlanPage({ params }: { params: { id: string } }) {
     const [copied, setCopied] = useState(false);
     const [plan, setPlan] = useState<any>(null);
     const [regenerating, setRegenerating] = useState(false);
+    const [imageLoading, setImageLoading] = useState(false);
 
     useEffect(() => {
         // Try to find the plan in history first
@@ -39,6 +40,52 @@ export default function PlanPage({ params }: { params: { id: string } }) {
     if (!plan) return <div className="min-h-screen flex items-center justify-center text-white">Загрузка...</div>;
 
     const activePost = plan.posts.find((p: any) => p.platform === activeTab);
+
+    const handlePublish = (post: any) => {
+        window.open(`https://${post.platform}.com/share?text=${encodeURIComponent(post.content)}`, '_blank');
+    };
+
+    const handleRegenerateImage = async (postIndex: number) => {
+        if (!plan || imageLoading) return;
+        const post = plan.posts[postIndex];
+        setImageLoading(true);
+
+        try {
+            const payload = {
+                plan_id: plan.id,
+                platform: "image", // Special platform for image regen
+                original_news: plan.original_news,
+                analysis: plan.analysis,
+                current_content: post.content
+            };
+
+            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/regenerate`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+
+            if (!res.ok) throw new Error("Regeneration failed");
+
+            const newPostData = await res.json(); // Returns GeneratedPost with new image_url
+
+            // Update state
+            const newPosts = [...plan.posts];
+            newPosts[postIndex] = {
+                ...newPosts[postIndex],
+                image_url: newPostData.image_url,
+                image_prompt: newPostData.image_prompt
+            };
+
+            setPlan({ ...plan, posts: newPosts });
+
+        } catch (e) {
+            alert("Ошибка обновления изображения");
+            console.error(e);
+        } finally {
+            setImageLoading(false);
+        }
+    };
 
     const handleCopy = () => {
         if (activePost) {
@@ -242,12 +289,25 @@ export default function PlanPage({ params }: { params: { id: string } }) {
                         <div className="space-y-4">
                             <GlassCard className="aspect-square relative overflow-hidden group flex items-center justify-center bg-black/40">
                                 {activePost?.image_url ? (
-                                    // eslint-disable-next-line @next/next/no-img-element
-                                    <img
-                                        src={activePost.image_url}
-                                        alt="Generated visual"
-                                        className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-                                    />
+                                    <>
+                                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                                        <img
+                                            src={activePost.image_url}
+                                            alt="Generated visual"
+                                            className={`w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 ${imageLoading ? 'blur-sm scale-105' : ''}`}
+                                        />
+                                        <button
+                                            onClick={() => {
+                                                const idx = plan.posts.findIndex((p: any) => p.platform === activeTab);
+                                                if (idx !== -1) handleRegenerateImage(idx);
+                                            }}
+                                            disabled={imageLoading}
+                                            className="absolute top-4 right-4 p-2 bg-black/60 hover:bg-black/80 rounded-full text-white transition-opacity opacity-0 group-hover:opacity-100 disabled:opacity-50 z-20"
+                                            title="Перегенерировать изображение"
+                                        >
+                                            <RefreshCw className={`w-4 h-4 ${imageLoading ? 'animate-spin' : ''}`} />
+                                        </button>
+                                    </>
                                 ) : (
                                     <div className="text-gray-500 flex flex-col items-center">
                                         <Eye className="w-8 h-8 mb-2 opacity-50" />
@@ -255,7 +315,15 @@ export default function PlanPage({ params }: { params: { id: string } }) {
                                     </div>
                                 )}
 
-                                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-6">
+                                {/* Loading Overlay */}
+                                {imageLoading && (
+                                    <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-black/20 backdrop-blur-sm">
+                                        <RefreshCw className="w-10 h-10 text-white animate-spin mb-2" />
+                                        <span className="text-sm font-medium text-white shadow-black drop-shadow-md">Рисую новое...</span>
+                                    </div>
+                                )}
+
+                                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-6 pointer-events-none">
                                     <p className="text-xs text-gray-300 line-clamp-2">
                                         Prompt: {activePost?.image_prompt}
                                     </p>

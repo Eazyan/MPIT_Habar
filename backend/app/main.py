@@ -18,6 +18,12 @@ app.add_middleware(
 def read_root():
     return {"Hello": "World", "Service": "AI-Newsmaker Backend"}
 
+@app.get("/history")
+async def get_history():
+    """Returns recent generations from MinIO."""
+    from app.storage import storage
+    return storage.list_generations(limit=12)
+
 @app.post("/generate", response_model=MediaPlan)
 async def generate_plan(news: NewsInput):
     """
@@ -99,7 +105,6 @@ async def regenerate_post(request: RegenerateRequest):
             Контакты для СМИ:
             [Имя/Email]
             """
-        elif request.platform == Platform.TELEGRAM:
             style_guide = """
             Telegram Channel Style.
             - Use Markdown (*bold*, _italic_) for emphasis.
@@ -107,6 +112,42 @@ async def regenerate_post(request: RegenerateRequest):
             - Short paragraphs.
             - Call to Action (CTA) at the end.
             """
+        elif request.platform == Platform.IMAGE:
+             # Logic for Image Regeneration
+             prompt = f"""
+             YOU ARE AN AI ART DIRECTOR.
+             TASK: Create a NEW, BETTER stable diffusion prompt for an image representing this news.
+             
+             News Analysis:
+             {request.analysis.summary}
+             
+             Visual Analysis:
+             Topics: {request.analysis.topics}
+             Sentiment: {request.analysis.sentiment}
+             
+             REQUIREMENTS:
+             - English ONLY.
+             - Descriptive, visual, artistic.
+             - No text in image.
+             - Modern, premium, cinematic lighting.
+             
+             OUTPUT: Just the prompt string.
+             """
+             
+             response = await llm.ainvoke([HumanMessage(content=prompt)])
+             image_prompt = response.content.strip()
+             
+             encoded_prompt = urllib.parse.quote(image_prompt)
+             image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?nologo=true"
+             
+             return GeneratedPost(
+                platform=Platform.IMAGE,
+                content="Image Updated",
+                image_prompt=image_prompt,
+                image_url=image_url,
+                status="draft"
+             )
+             
         else:
             style_guide = "Engaging social media style. Emojis allowed. NO Markdown headers (like ##). Ready to publish."
 

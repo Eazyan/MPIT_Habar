@@ -25,17 +25,20 @@ export default function Home() {
       setBrandName(parsed.name);
     }
 
-    // Load history
-    const history = localStorage.getItem("plansHistory");
-    if (history) {
-      setRecentPlans(JSON.parse(history));
-    } else {
-      // Fallback to lastPlan if history is empty (migration)
-      const last = localStorage.getItem("lastPlan");
-      if (last) {
-        setRecentPlans([JSON.parse(last)]);
+    // Load history from Backend
+    const fetchHistory = async () => {
+      try {
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/history`);
+        if (res.ok) {
+          const data = await res.json();
+          setRecentPlans(data);
+        }
+      } catch (e) {
+        console.error("Failed to fetch history", e);
       }
-    }
+    };
+
+    fetchHistory();
   }, [showSettings]);
 
   const [scanResults, setScanResults] = useState<any[]>([]);

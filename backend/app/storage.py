@@ -59,5 +59,31 @@ class StorageClient:
             print(f"MinIO Read Error: {e}")
             return None
 
+    def list_generations(self, limit: int = 10) -> list:
+        """Lists recent generations from history bucket."""
+        try:
+            # List all objects recursively
+            objects = list(self.client.list_objects(self.history_bucket, recursive=True))
+            
+            # Filter for data.json files
+            data_files = [obj for obj in objects if obj.object_name.endswith("data.json")]
+            
+            # Sort by Last Modified Descending
+            data_files.sort(key=lambda x: x.last_modified, reverse=True)
+            
+            # Take top N
+            recent_files = data_files[:limit]
+            
+            results = []
+            for obj in recent_files:
+                response = self.client.get_object(self.history_bucket, obj.object_name)
+                data = json.loads(response.read())
+                results.append(data)
+                
+            return results
+        except Exception as e:
+            print(f"MinIO List Error: {e}")
+            return []
+
 # Global instance
 storage = StorageClient()
