@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from app.models import NewsInput, MediaPlan, NewsAnalysis, RegenerateRequest, GeneratedPost, Platform
+from app.models import NewsInput, MediaPlan, NewsAnalysis, RegenerateRequest, GeneratedPost, Platform, BrandProfile
 from app.agents.graph import app as agent_app
 import uuid
 
@@ -155,5 +155,17 @@ async def regenerate_post(request: RegenerateRequest):
     except Exception as e:
         import traceback
         traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/monitor/scan", response_model=list[NewsInput])
+async def scan_news(profile: BrandProfile):
+    """
+    Scans for recent news about the brand.
+    """
+    from app.agents.monitoring import search_brand_mentions
+    try:
+        results = await search_brand_mentions(profile)
+        return results
+    except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

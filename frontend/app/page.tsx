@@ -36,23 +36,48 @@ export default function Home() {
     }
   }, [showSettings]);
 
+  const [scanResults, setScanResults] = useState<any[]>([]);
+  const [showScanResults, setShowScanResults] = useState(false);
+
   const handleGenerate = async (mode: "link" | "monitoring") => {
     setLoading(true);
 
     const savedProfile = localStorage.getItem("brandProfile");
     const brandProfile = savedProfile ? JSON.parse(savedProfile) : null;
 
-    if (mode === "monitoring" && !brandProfile) {
-      alert("Сначала настройте профиль бренда!");
-      setShowSettings(true);
-      setLoading(false);
+    if (mode === "monitoring") {
+      if (!brandProfile) {
+        alert("Сначала настройте профиль бренда!");
+        setShowSettings(true);
+        setLoading(false);
+        return;
+      }
+
+      // Run Scan
+      try {
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/monitor/scan`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(brandProfile),
+        });
+
+        if (!res.ok) throw new Error('Scan failed');
+
+        const results = await res.json();
+        setScanResults(results);
+        setShowScanResults(true);
+      } catch (error) {
+        console.error(error);
+        alert("Ошибка сканирования");
+      } finally {
+        setLoading(false);
+      }
       return;
     }
 
+    // Link Mode Logic
     try {
-      const payload = mode === "link"
-        ? { url, brand_profile: brandProfile }
-        : { url: "monitoring", brand_profile: brandProfile };
+      const payload = { url, brand_profile: brandProfile };
 
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/generate`, {
         method: 'POST',
@@ -77,6 +102,45 @@ export default function Home() {
     } catch (error) {
       console.error(error);
       alert("Ошибка генерации. Проверьте консоль.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSelectNews = async (newsItem: any) => {
+    setLoading(true);
+    setShowScanResults(false);
+
+    const savedProfile = localStorage.getItem("brandProfile");
+    const brandProfile = savedProfile ? JSON.parse(savedProfile) : null;
+
+    try {
+      const payload = {
+        url: newsItem.url,
+        text: newsItem.text, // Pass the text we found
+        brand_profile: brandProfile
+      };
+
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) throw new Error('Generation failed');
+
+      const data = await res.json();
+
+      // Save to history
+      const history = JSON.parse(localStorage.getItem('plansHistory') || '[]');
+      const newHistory = [data, ...history].slice(0, 10);
+      localStorage.setItem('plansHistory', JSON.stringify(newHistory));
+
+      router.push(`/plan/${data.id}`);
+
+    } catch (error) {
+      console.error(error);
+      alert("Ошибка генерации");
     } finally {
       setLoading(false);
     }
@@ -195,6 +259,41 @@ export default function Home() {
             )}
           </div>
         </div>
+
+        {/* Scan Results Modal */}
+        {showScanResults && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <GlassCard className="w-full max-w-2xl max-h-[80vh] overflow-y-auto p-6 relative">
+              <button
+                onClick={() => setShowScanResults(false)}
+                className="absolute top-4 right-4 text-gray-400 hover:text-white"
+              >
+                ✕
+              </button>
+              <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                <Radar className="w-5 h-5 text-purple-400" />
+                Найденные новости
+              </h2>
+
+              <div className="space-y-3">
+                {scanResults.length > 0 ? scanResults.map((item, i) => (
+                  <div
+                    key={i}
+                    onClick={() => handleSelectNews(item)}
+                    className="p-4 rounded-lg bg-white/5 hover:bg-white/10 cursor-pointer transition-colors border border-white/5 hover:border-purple-500/30"
+                  >
+                    <h3 className="text-white font-medium mb-2">{item.url}</h3>
+                    <p className="text-sm text-gray-400 line-clamp-2">{item.text}</p>
+                  </div>
+                )) : (
+                  <div className="text-center py-8 text-gray-500">
+                    Новостей не найдено. Попробуйте изменить ключевые слова в настройках.
+                  </div>
+                )}
+              </div>
+            </GlassCard>
+          </div>
+        )}
 
       </div>
     </main>
