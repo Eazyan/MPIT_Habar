@@ -2,7 +2,7 @@
 
 import { GlassCard } from "@/components/ui/glass-card";
 import { motion } from "framer-motion";
-import { ArrowLeft, Share2, Copy, Check, Download, ExternalLink, AlertTriangle, CheckCircle, Eye, Send, RefreshCw } from "lucide-react";
+import { ArrowLeft, Share2, Copy, Check, Download, ExternalLink, AlertTriangle, CheckCircle, Eye, Send, RefreshCw, Heart } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect } from "react";
 
@@ -262,10 +262,27 @@ export default function PlanPage({ params }: { params: { id: string } }) {
                                 </div>
                             </GlassCard>
 
-                            <button className="w-full bg-green-600 hover:bg-green-500 text-white font-bold py-4 rounded-xl shadow-lg shadow-green-500/20 transition-all flex items-center justify-center gap-2">
-                                <Send className="w-5 h-5" />
-                                Опубликовать в {activeTab.toUpperCase()}
-                            </button>
+                            <div className="grid grid-cols-2 gap-4">
+                                <button
+                                    onClick={async () => {
+                                        try {
+                                            await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/feedback?plan_id=${plan.id}&like=true`, { method: 'POST' });
+                                            alert("Спасибо! Кейс сохранен в базу знаний.");
+                                        } catch (e) {
+                                            alert("Ошибка сохранения");
+                                        }
+                                    }}
+                                    className="bg-pink-600 hover:bg-pink-500 text-white font-bold py-4 rounded-xl shadow-lg shadow-pink-500/20 transition-all flex items-center justify-center gap-2"
+                                >
+                                    <Heart className="w-5 h-5 fill-current" />
+                                    Нравится
+                                </button>
+
+                                <button className="bg-green-600 hover:bg-green-500 text-white font-bold py-4 rounded-xl shadow-lg shadow-green-500/20 transition-all flex items-center justify-center gap-2">
+                                    <Send className="w-5 h-5" />
+                                    Опубликовать
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>

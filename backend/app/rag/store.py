@@ -22,6 +22,14 @@ class RAGStore:
             ids=ids
         )
 
+    def add_case(self, doc_id: str, text: str, metadata: Dict):
+        """Add a single case to the vector store."""
+        self.collection.add(
+            documents=[text],
+            metadatas=[metadata],
+            ids=[doc_id]
+        )
+
     def query(self, query_text: str, n_results: int = 3) -> List[str]:
         """Retrieve relevant documents."""
         results = self.collection.query(

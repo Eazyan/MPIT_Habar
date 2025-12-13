@@ -10,3 +10,4 @@ python-dotenv
 beautifulsoup4
 langchain-anthropic
 tavily-python
+minio

@@ -33,15 +33,25 @@ async def generate_plan(news: NewsInput):
             raise HTTPException(status_code=500, detail=f"Agent Error: {result['errors']}")
             
         # Construct response
+        # Use result['input'] to get the updated news object (with scraped text)
+        final_input = result.get("input", news)
+        
         plan = MediaPlan(
             id=str(uuid.uuid4()),
-            original_news=news,
+            original_news=final_input,
             analysis=result["analysis"],
             posts=result["posts"]
         )
+        
+        # Save to MinIO History
+        from app.storage import storage
+        storage.save_generation(plan.id, plan.dict())
+        
         return plan
         
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/regenerate", response_model=GeneratedPost)
@@ -169,3 +179,53 @@ async def scan_news(profile: BrandProfile):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/feedback")
+async def feedback(plan_id: str, like: bool):
+    """
+    Handles user feedback. If like=True, promotes the case to RAG knowledge base.
+    """
+    if not like:
+        return {"status": "ignored"}
+        
+    try:
+        from app.storage import storage
+        from app.rag.store import rag_store
+        
+        # 1. Promote in MinIO (Copy from history to rag-knowledge)
+        success = storage.promote_to_rag(plan_id)
+        if not success:
+            raise HTTPException(status_code=500, detail="Failed to promote in Storage")
+            
+        # 2. Index in ChromaDB
+        data = storage.get_generation(plan_id)
+        if data:
+            # Create a rich context string
+            # Format: "News: ... \n Verdict: ... \n Post: ..."
+            # We index the NEWS TEXT primarily so we can find similar news later.
+            news_text = data['original_news'].get('text')
+            
+            # Fallback if text is None (e.g. scraping failed but analysis worked on summary/snippet)
+            if not news_text:
+                news_text = data['analysis']['summary']
+                
+            verdict = data['analysis']['pr_verdict']
+            
+            # Metadata allows us to filter or retrieve details
+            metadata = {
+                "plan_id": plan_id,
+                "verdict": verdict,
+                "bucket": "rag-knowledge"
+            }
+            
+            rag_store.add_case(
+                doc_id=plan_id,
+                text=news_text,
+                metadata=metadata
+            )
+            
+        return {"status": "promoted"}
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
