@@ -7,9 +7,19 @@ from app.rag.store import rag_store
 def context_node(state: AgentState) -> AgentState:
     """Retrieves context from RAG."""
     print("--- CONTEXT AGENT ---")
-    # Query RAG based on summary or text
-    query = state['input'].text[:200] if state['input'].text else "News"
+    # Query RAG based on summary (cleaner, Russian language)
+    # Analyzer runs before Context, so analysis is available
+    analysis = state.get('analysis')
+    query = analysis.summary if analysis else (state['input'].text[:200] if state['input'].text else "News")
+    
+    print(f"DEBUG: RAG Query: {query[:100]}...")
     context = rag_store.query(query)
+    if context:
+        print(f"--- RAG FOUND {len(context)} RELEVANT CASES ---")
+        print(context)
+    else:
+        print("--- RAG: NO RELEVANT CASES FOUND ---")
+        
     return {"context": context}
 
 from app.agents.visual import visual_node

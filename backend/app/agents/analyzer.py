@@ -89,7 +89,12 @@ async def analyzer_node(state: AgentState) -> AgentState:
         - Market Impact: +30
         - Urgency: +30
         (Explain calculation in reasoning if needed)
-    88. Provide 3 actionable TIPS on how to execute this strategy.
+    88. Determine the Category:
+        - CRISIS: Negative sentiment, scandals, threats.
+        - PRODUCT: Launches, updates, features.
+        - COMPETITOR: Competitor news.
+        - ROUTINE: General industry news, lists.
+    89. Provide 3 actionable TIPS on how to execute this strategy.
     
     IMPORTANT: Output MUST be valid JSON matching the schema. All text fields in RUSSIAN.
     Sentiment MUST be one of: "Позитивная", "Негативная", "Нейтральная".
@@ -104,6 +109,7 @@ async def analyzer_node(state: AgentState) -> AgentState:
         "relevance_score": 0-100,
         "pr_verdict": "Отвечать|Игнорировать|Мониторить|Ньюсджекинг",
         "pr_reasoning": "string (in Russian)",
+        "category": "CRISIS|PRODUCT|COMPETITOR|ROUTINE",
         "tips": ["string (in Russian)"]
     }}
     """

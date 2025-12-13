@@ -191,37 +191,41 @@ async def feedback(plan_id: str, like: bool):
         from app.storage import storage
         from app.rag.store import rag_store
         
-        # 1. Promote in MinIO (Copy from history to rag-knowledge)
-        success = storage.promote_to_rag(plan_id)
+        # 1. Get Data first to know the category
+        data = storage.get_generation(plan_id)
+        if not data:
+             raise HTTPException(status_code=404, detail="Plan not found in history")
+
+        # Extract category (default to ROUTINE if missing, e.g. old plans)
+        category = data['analysis'].get('category', 'ROUTINE')
+        
+        # 2. Promote in MinIO (Copy from history to rag-knowledge/{category})
+        success = storage.promote_to_rag(plan_id, category)
         if not success:
             raise HTTPException(status_code=500, detail="Failed to promote in Storage")
             
-        # 2. Index in ChromaDB
-        data = storage.get_generation(plan_id)
-        if data:
-            # Create a rich context string
-            # Format: "News: ... \n Verdict: ... \n Post: ..."
-            # We index the NEWS TEXT primarily so we can find similar news later.
-            news_text = data['original_news'].get('text')
-            
-            # Fallback if text is None (e.g. scraping failed but analysis worked on summary/snippet)
-            if not news_text:
-                news_text = data['analysis']['summary']
-                
-            verdict = data['analysis']['pr_verdict']
-            
-            # Metadata allows us to filter or retrieve details
-            metadata = {
-                "plan_id": plan_id,
-                "verdict": verdict,
-                "bucket": "rag-knowledge"
-            }
-            
-            rag_store.add_case(
-                doc_id=plan_id,
-                text=news_text,
-                metadata=metadata
-            )
+        # 3. Index in ChromaDB
+        # Create a rich context string
+        # Format: "News: ... \n Verdict: ... \n Post: ..."
+        # We index the SUMMARY primarily so we can find similar news later.
+        # Using Summary ensures language consistency (Russian) and noise reduction.
+        news_text = data['analysis']['summary']
+        
+        verdict = data['analysis']['pr_verdict']
+        
+        # Metadata allows us to filter or retrieve details
+        metadata = {
+            "plan_id": plan_id,
+            "verdict": verdict,
+            "category": category,
+            "bucket": "rag-knowledge"
+        }
+        
+        rag_store.add_case(
+            doc_id=plan_id,
+            text=news_text,
+            metadata=metadata
+        )
             
         return {"status": "promoted"}
         

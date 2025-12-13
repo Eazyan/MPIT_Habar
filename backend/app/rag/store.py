@@ -30,14 +30,42 @@ class RAGStore:
             ids=[doc_id]
         )
 
-    def query(self, query_text: str, n_results: int = 3) -> List[str]:
-        """Retrieve relevant documents."""
+    def query(self, query_text: str, n_results: int = 3, threshold: float = 1.5) -> List[str]:
+        """Retrieve relevant documents with distance threshold."""
         results = self.collection.query(
             query_texts=[query_text],
             n_results=n_results
         )
-        # Flatten results
-        return results['documents'][0] if results['documents'] else []
+        
+        # results['distances'] contains the distance metric (lower is better)
+        # results['documents'] contains the text
+        
+        if not results['documents']:
+            return []
+            
+        final_docs = []
+        # Check distances if available (default metric is L2 or Cosine depending on setup, usually L2 for Chroma default)
+        # For L2, smaller is closer. 
+        # Note: Chroma returns a list of lists (one per query)
+        
+        distances = results['distances'][0] if 'distances' in results and results['distances'] else []
+        documents = results['documents'][0]
+        
+        print(f"DEBUG: Querying RAG. Found {len(documents)} candidates.")
+        
+        for i, doc in enumerate(documents):
+            # If we have distances, filter. If not (unlikely), include all.
+            if distances:
+                dist = distances[i]
+                print(f"DEBUG: Candidate {i}: Dist={dist:.4f} | Text={doc[:50]}...")
+                # Heuristic: 1.5 is a loose threshold for L2. 
+                # If distance > threshold, it's too far.
+                if dist > threshold:
+                    print(f"DEBUG: Dropped (Threshold {threshold})")
+                    continue
+            final_docs.append(doc)
+            
+        return final_docs
 
 # Global instance
 rag_store = RAGStore()

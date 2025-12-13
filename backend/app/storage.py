@@ -32,17 +32,20 @@ class StorageClient:
             print(f"MinIO Save Error: {e}")
             return False
 
-    def promote_to_rag(self, plan_id: str):
-        """Copies data from history bucket to rag-knowledge bucket."""
+    def promote_to_rag(self, plan_id: str, category: str = "ROUTINE"):
+        """Copies data from history bucket to rag-knowledge bucket with categorization."""
         from minio.commonconfig import CopySource
         try:
-            # Copy JSON
+            # Copy JSON to categorized folder
             self.client.copy_object(
                 self.rag_bucket,
-                f"{plan_id}/data.json",
+                f"{category}/{plan_id}/data.json",
                 CopySource(self.history_bucket, f"{plan_id}/data.json")
             )
             return True
+        except Exception as e:
+            print(f"MinIO Promote Error: {e}")
+            return False
         except Exception as e:
             print(f"MinIO Promote Error: {e}")
             return False

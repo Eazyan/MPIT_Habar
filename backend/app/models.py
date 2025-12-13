@@ -34,6 +34,7 @@ class NewsAnalysis(BaseModel):
     relevance_score: int = Field(..., description="Оценка релевантности для бренда (0-100)")
     pr_verdict: str = Field(..., description="Вердикт PR-стратега (Отвечать/Игнорировать/...)")
     pr_reasoning: str = Field(..., description="Обоснование вердикта")
+    category: str = Field(..., description="Категория новости: CRISIS, PRODUCT, COMPETITOR, ROUTINE")
     tips: List[str] = Field(default=[], description="Советы по реализации стратегии")
 
 class GeneratedPost(BaseModel):
