@@ -12,4 +12,7 @@ class User(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     
     # Store brand profile in JSON to avoid complex joins for now
-    brand_profile = Column(JSON, nullable=True) 
+    brand_profile = Column(JSON, nullable=True)
+    
+    # Telegram Integration
+    telegram_chat_id = Column(String, unique=True, nullable=True) 

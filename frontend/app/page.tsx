@@ -53,7 +53,17 @@ export default function Home() {
       try {
         const { api } = await import("@/lib/api");
         const res = await api.get("/history");
-        setRecentPlans(res.data);
+
+        // Merge with local pending tasks efficiently
+        setRecentPlans(prev => {
+          // Keep tasks that are still locally pending/processing and NOT returned by server yet
+          const localPending = prev.filter(p =>
+            (p.status === "pending" || p.status === "processing") &&
+            !res.data.find((sp: any) => sp.id === p.id)
+          );
+
+          return [...localPending, ...res.data];
+        });
       } catch (e) {
         console.error("Failed to fetch history", e);
       }
@@ -237,6 +247,26 @@ export default function Home() {
           </div>
 
           <div className="flex items-center gap-2 md:gap-3">
+            {/* Telegram Link Button */}
+            <button
+              onClick={async () => {
+                try {
+                  const { api } = await import("@/lib/api");
+                  const res = await api.post("/auth/telegram/link-token");
+                  if (res.data.bot_url) {
+                    window.open(res.data.bot_url, "_blank");
+                  }
+                } catch (e: any) {
+                  alert("Ошибка: " + (e.response?.data?.detail || "Connection failed"));
+                }
+              }}
+              className="p-2 mr-2 rounded-lg bg-[#2AABEE]/10 hover:bg-[#2AABEE]/20 text-[#2AABEE] transition-colors border border-[#2AABEE]/20 flex items-center gap-2"
+              title="Подключить Telegram"
+            >
+              <Send className="w-4 h-4" />
+              <span className="hidden sm:inline text-xs font-medium">Link TG</span>
+            </button>
+
             {/* User Menu - compact on mobile */}
             <div className="flex items-center gap-2 px-2 md:px-3 py-2 rounded-lg bg-white/5 border border-white/10">
               <User className="w-4 h-4 text-gray-400" />

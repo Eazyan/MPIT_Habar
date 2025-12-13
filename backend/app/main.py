@@ -1,5 +1,6 @@
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 from app.models import NewsInput, MediaPlan, NewsAnalysis, RegenerateRequest, GeneratedPost, Platform, BrandProfile
 from app.agents.graph import app as agent_app
 import uuid
@@ -7,7 +8,14 @@ import uuid
 from app.database import engine, Base
 from app.auth.router import router as auth_router, get_current_user
 from app.auth.models import User
+from app.auth.models import User
 from fastapi import Depends
+import redis
+import json
+import os
+
+# Redis connection
+redis_client = redis.Redis.from_url(os.getenv("REDIS_URL", "redis://redis:6379/0"), decode_responses=True)
 
 # Create Tables
 Base.metadata.create_all(bind=engine)
@@ -82,10 +90,98 @@ async def run_generation_task(task_id: str, news: NewsInput, user_id: int):
         # Update task with result
         update_task_status(task_id, TaskStatus.READY, data=plan.dict())
         
+        # Get Telegram Chat ID
+        telegram_chat_id = None
+        try:
+            from app.database import SessionLocal
+            from app.auth.models import User
+            with SessionLocal() as db:
+                user_obj = db.query(User).filter(User.id == user_id).first()
+                if user_obj:
+                    telegram_chat_id = user_obj.telegram_chat_id
+        except Exception as e:
+            print(f"Error fetching User for notification: {e}")
+
+        # Publish Notification to Redis
+        try:
+            # Find the best post (e.g. Telegram or first available)
+            best_post = next((p for p in plan.posts if p.platform == "telegram"), plan.posts[0] if plan.posts else None)
+            post_content = best_post.content if best_post else "Нет сгенерированного поста."
+
+            redis_client.publish("task_updates", json.dumps({
+                "type": "task_completed",
+                "task_id": task_id,
+                "user_id": user_id,
+                "telegram_chat_id": telegram_chat_id,
+                "summary": plan.analysis.summary,
+                "score": plan.analysis.relevance_score,
+                "verdict": plan.analysis.pr_verdict,
+                "post_content": post_content,
+                "status": "ready"
+            }))
+        except Exception as e:
+            print(f"Redis Publish Error: {e}")
+        
     except Exception as e:
+        print(f"Generation Error: {e}")
         import traceback
         traceback.print_exc()
         update_task_status(task_id, TaskStatus.ERROR, error=str(e))
+        
+        # Publish Error Notification
+        try:
+            redis_client.publish("task_updates", json.dumps({
+                "type": "task_error",
+                "task_id": task_id,
+                "user_id": user_id,
+                "telegram_chat_id": telegram_chat_id if 'telegram_chat_id' in locals() else None,
+                "error": str(e)
+            }))
+        except:
+            pass
+
+class BotGenerateRequest(BaseModel):
+    url: str
+    telegram_chat_id: str
+    model_provider: str = "claude"
+    mode: str = "pr"
+
+@app.post("/bot/generate")
+async def bot_generate(req: BotGenerateRequest, background_tasks: BackgroundTasks):
+    """
+    Internal endpoint for Bot to trigger generation.
+    """
+    from app.database import SessionLocal
+    from app.task_queue import save_task, can_start_task, TaskStatus
+    
+    # 1. Find User by Telegram ID
+    with SessionLocal() as db:
+        user = db.query(User).filter(User.telegram_chat_id == req.telegram_chat_id).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not linked. Please link account first.")
+        user_id = user.id
+    
+    # Check limits
+    if not can_start_task(user_id):
+        raise HTTPException(status_code=429, detail="Максимум 3 активных генерации. Подождите.")
+
+    # 2. Create Task
+    task_id = str(uuid.uuid4())
+    save_task(task_id, user_id, TaskStatus.PENDING)
+    
+    # 3. Create Input
+    # Use params from request
+    news_input = NewsInput(
+        url=req.url,
+        model_provider=req.model_provider,
+        mode=req.mode, 
+        brand_profile=BrandProfile(**user.brand_profile) if user.brand_profile else None
+    )
+    
+    # 4. Run
+    background_tasks.add_task(run_generation_task, task_id, news_input, user_id)
+    
+    return {"task_id": task_id, "status": "pending"}
 
 @app.post("/generate")
 async def generate_plan(news: NewsInput, background_tasks: BackgroundTasks, user: User = Depends(get_current_user)):

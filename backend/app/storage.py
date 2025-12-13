@@ -15,6 +15,19 @@ class StorageClient:
         self.history_bucket = "history"
         self.rag_bucket = "rag-knowledge"
 
+        
+        # Ensure buckets exist
+        self._ensure_bucket(self.history_bucket)
+        self._ensure_bucket(self.rag_bucket)
+
+    def _ensure_bucket(self, bucket_name):
+        try:
+            if not self.client.bucket_exists(bucket_name):
+                self.client.make_bucket(bucket_name)
+                print(f"Created bucket: {bucket_name}")
+        except Exception as e:
+            print(f"MinIO Init Error ({bucket_name}): {e}")
+
     def save_generation(self, user_id: int, plan_id: str, data: dict):
         """Saves the full generation data to the history bucket."""
         try:

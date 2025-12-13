@@ -102,18 +102,20 @@ async def analyzer_node(state: AgentState) -> AgentState:
     Task:
     1. Extract key facts, quotes, and summary.
     2. Determine sentiment specifically towards the BRAND (if mentioned) or the market.
-    86. Decide on a PR Verdict: Should we respond? Ignore? Newsjack?
-    87. Provide a Relevance Score (0-100). CRITICAL: Calculate based on:
+    3. Decide on a PR Verdict: Should we respond? Ignore? Newsjack?
+       - CRITICAL: Look for "Newsjacking" opportunities! Even if the news is negative/unrelated, try to find a creative way to mention the Brand (e.g., "Health issues in city -> Brand Watch helps monitor health").
+       - If "Ignore" is chosen, still provide a creative "What if" scenario in the reasoning.
+    4. Provide a Relevance Score (0-100). Calculate based on:
         - Direct Brand Mention: +40
         - Market Impact: +30
         - Urgency: +30
-        (Explain calculation in reasoning if needed)
-    88. Determine the Category:
+        - Newsjacking Potential: +20 (Bonus)
+    5. Determine the Category:
         - CRISIS: Negative sentiment, scandals, threats.
         - PRODUCT: Launches, updates, features.
         - COMPETITOR: Competitor news.
         - ROUTINE: General industry news, lists.
-    89. Provide 3 actionable TIPS on how to execute this strategy.
+    6. Provide 3 actionable TIPS on how to execute this strategy.
     
     IMPORTANT: Output MUST be valid JSON matching the schema. All text fields in RUSSIAN (except 'sentiment').
     Sentiment MUST be one of: "POSITIVE", "NEGATIVE", "NEUTRAL".
@@ -144,17 +146,31 @@ async def analyzer_node(state: AgentState) -> AgentState:
         return {"errors": [f"LLM Invoke Error: {str(e)}"]}
     
     try:
-        # Simple parsing
-        content = response.content
+        # Robust parsing using regex to find the first JSON object
+        content = response.content.strip()
+        
+        # 1. Try to extract from code blocks first
         if "```json" in content:
             content = content.split("```json")[1].split("```")[0]
         elif "```" in content:
             content = content.split("```")[1].split("```")[0]
             
-        analysis_dict = json.loads(content.strip())
+        # 2. Cleanup and Load
+        import re
+        content = content.strip()
+        
+        # If still contains non-json text, try regex for {...}
+        if not content.startswith("{"):
+            match = re.search(r'\{.*\}', content, re.DOTALL)
+            if match:
+                content = match.group(0)
+        
+        analysis_dict = json.loads(content)
         analysis = NewsAnalysis(**analysis_dict)
         
         return {"analysis": analysis}
     except Exception as e:
         print(f"Error parsing analysis: {e}")
-        return {"errors": [str(e)]}
+        # Log bad content for debugging
+        print(f"Content: {response.content[:500]}...") 
+        return {"errors": [f"JSON Parse Error: {str(e)}"]}

@@ -20,6 +20,7 @@ services:
       - OLLAMA_BASE_URL=http://host.docker.internal:11434
       - MINIO_ENDPOINT=minio:9000
       - DATABASE_URL=postgresql://newsmaker:newsmaker_password@postgres:5432/newsmaker_db
+      - BOT_USERNAME=RezonansAI_bot
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
@@ -71,6 +72,7 @@ services:
     environment:
       - BOT_TOKEN=${BOT_TOKEN}
       - BACKEND_URL=http://backend:8000
+      - BOT_USERNAME=RezonansAI_bot
     depends_on:
       - backend
     networks:

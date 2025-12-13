@@ -101,3 +101,58 @@ def update_brand_profile(profile: dict, current_user: User = Depends(get_current
     db.commit()
     db.refresh(current_user)
     return {"status": "saved", "profile": current_user.brand_profile}
+
+# --- Telegram Linking ---
+import redis
+import random
+import string
+
+redis_client = redis.Redis.from_url(os.getenv("REDIS_URL", "redis://redis:6379/0"), decode_responses=True)
+
+class LinkTokenResponse(BaseModel):
+    token: str
+    bot_url: str
+
+class LinkRequest(BaseModel):
+    token: str
+    telegram_chat_id: str
+
+@router.post("/telegram/link-token", response_model=LinkTokenResponse)
+def generate_link_token(current_user: User = Depends(get_current_user)):
+    """Generates a short code to link Telegram."""
+    # Generate 6-digit code
+    token = "".join(random.choices(string.digits, k=6))
+    
+    # Store in Redis: link_code:123456 -> user_id
+    # TTL: 10 minutes
+    redis_client.setex(f"link_code:{token}", 600, str(current_user.id))
+    
+    bot_name = os.getenv("BOT_USERNAME", "RezonansAI_bot") # Should match your bot
+    return {
+        "token": token,
+        "bot_url": f"https://t.me/{bot_name}?start={token}"
+    }
+
+@router.post("/telegram/link")
+def link_telegram(req: LinkRequest, db: Session = Depends(get_db)):
+    """
+    Internal endpoint called by Bot to finalize linking.
+    No Auth required (or use secret header in prod).
+    """
+    # 1. Validate Token
+    user_id = redis_client.get(f"link_code:{req.token}")
+    if not user_id:
+        raise HTTPException(status_code=400, detail="Invalid or expired token")
+    
+    # 2. Update User
+    user = db.query(User).filter(User.id == int(user_id)).first()
+    if not user:
+         raise HTTPException(status_code=404, detail="User not found")
+    
+    user.telegram_chat_id = req.telegram_chat_id
+    db.commit()
+    
+    # 3. Cleanup
+    redis_client.delete(f"link_code:{req.token}")
+    
+    return {"status": "linked", "user_email": user.email}
