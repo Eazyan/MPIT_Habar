@@ -241,7 +241,9 @@ async def regenerate_post(request: RegenerateRequest, user: User = Depends(get_c
     import urllib.parse
 
     try:
-        llm = get_llm()
+        # Use the same model that was used for original generation
+        model_provider = request.original_news.model_provider if request.original_news else "claude"
+        llm = get_llm(model_provider)
         
         # Reconstruct context (simplified for single post)
         brand_name = request.original_news.brand_profile.name if request.original_news.brand_profile else "Brand"
