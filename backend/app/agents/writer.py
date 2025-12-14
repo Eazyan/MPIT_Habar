@@ -6,7 +6,6 @@ import os
 
 def writer_node(state: AgentState) -> AgentState:
     """Generates posts based on analysis and context."""
-    print("--- WRITER AGENT ---")
     
     if state.get("errors"):
         return {"errors": state["errors"]}
@@ -67,41 +66,23 @@ def writer_node(state: AgentState) -> AgentState:
             role_description = f"You are a TECH/BUSINESS BLOGGER reviewing news about {brand_name}."
             voice_instruction = f"Write as an independent blogger giving your opinion on {brand_name}."
         else:
-            # PR mode - ROBUST extraction with VERBOSE DEBUG
+            # PR-режим: извлекаем имя бренда из профиля
             try:
                 inp = state.get("input")
-                print(f"DEBUG [Writer]: inp = {inp}")
-                print(f"DEBUG [Writer]: inp type = {type(inp)}")
-                
                 if inp:
-                    # Handle both Object and Dict access
                     bp = getattr(inp, "brand_profile", None)
-                    print(f"DEBUG [Writer]: bp via getattr = {bp}")
-                    
                     if not bp and isinstance(inp, dict):
                         bp = inp.get("brand_profile")
-                        print(f"DEBUG [Writer]: bp via dict.get = {bp}")
                     
                     if bp:
-                        print(f"DEBUG [Writer]: bp type = {type(bp)}")
-                        # Handle BrandProfile object or dict
                         candidate = getattr(bp, "name", None)
-                        print(f"DEBUG [Writer]: name via getattr = {candidate}")
-                        
                         if not candidate and isinstance(bp, dict):
                             candidate = bp.get("name")
-                            print(f"DEBUG [Writer]: name via dict.get = {candidate}")
-                        
                         if candidate:
                             brand_name = candidate
-                    else:
-                        print("DEBUG [Writer]: bp is None/Empty!")
-                else:
-                    print("DEBUG [Writer]: inp is None!")
-            except Exception as e:
-                print(f"DEBUG [Writer]: EXCEPTION: {e}")
+            except Exception:
+                pass
             
-            print(f"DEBUG [Writer PR Mode]: FINAL Brand Name = {brand_name}")
             role_description = f"You are the Head of Communications for {brand_name}."
             voice_instruction = f"Write AS {brand_name}. You are the official voice of the brand."
 

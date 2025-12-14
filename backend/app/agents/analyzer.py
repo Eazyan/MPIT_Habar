@@ -9,7 +9,6 @@ import random
 
 async def analyzer_node(state: AgentState) -> AgentState:
     """Analyzes the news content."""
-    print("--- ANALYZER AGENT ---")
     
     # Get model provider from input
     model_provider = state['input'].model_provider if state.get('input') else "claude"
@@ -25,7 +24,6 @@ async def analyzer_node(state: AgentState) -> AgentState:
     
     # 0. Handle Monitoring Trigger
     if news_input.url == "monitoring":
-        print("--- MONITORING TRIGGERED ---")
         if not news_input.brand_profile:
              return {"errors": ["Monitoring requires a Brand Profile."]}
              
@@ -53,19 +51,16 @@ async def analyzer_node(state: AgentState) -> AgentState:
     if not news_text:
         return {"errors": ["No text provided and scraping failed."]}
 
-    # 2. Prepare Brand Context - ROBUST extraction
-    # news_input may be a Pydantic object OR a dict depending on LangGraph serialization
+    # Извлекаем профиль бренда (может быть объект или dict)
     brand_profile = None
     try:
         bp = getattr(news_input, "brand_profile", None)
         if not bp and isinstance(news_input, dict):
             bp = news_input.get("brand_profile")
-        
         if bp:
-            # bp could be BrandProfile object or dict
             brand_profile = bp
-    except Exception as e:
-        print(f"DEBUG [Analyzer]: Error extracting brand_profile: {e}")
+    except Exception:
+        pass
     
     mode = state.get('mode', 'pr')
     target_brand = state.get('target_brand')

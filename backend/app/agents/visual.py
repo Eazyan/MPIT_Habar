@@ -3,7 +3,6 @@ from app.agents.state import AgentState
 
 def visual_node(state: AgentState) -> AgentState:
     """Generates images for posts using Pollinations.ai."""
-    print("--- VISUAL AGENT ---")
     
     posts = state.get('posts', [])
     updated_posts = []

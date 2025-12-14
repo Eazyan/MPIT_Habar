@@ -53,12 +53,9 @@ class RAGStore:
             return []
             
         final_docs = []
-        # Check distances if available
         distances = results['distances'][0] if 'distances' in results and results['distances'] else []
         documents = results['documents'][0]
         
-        user_info = f"User {user_id}" if user_id else "All Users"
-        print(f"DEBUG: Querying RAG ({user_info}). Found {len(documents)} candidates.")
         
         for i, doc in enumerate(documents):
             if distances:
