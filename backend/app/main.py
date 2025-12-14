@@ -199,6 +199,17 @@ async def generate_plan(news: NewsInput, background_tasks: BackgroundTasks, user
     task_id = str(uuid.uuid4())
     save_task(task_id, user.id, TaskStatus.PENDING)
     
+    # CRITICAL: Inject user's brand_profile from DB into news
+    # Frontend doesn't send it, backend must fetch it
+    if user.brand_profile:
+        try:
+            news.brand_profile = BrandProfile(**user.brand_profile) if isinstance(user.brand_profile, dict) else user.brand_profile
+            print(f"DEBUG [/generate]: Injected brand_profile: {news.brand_profile.name if news.brand_profile else 'None'}")
+        except Exception as e:
+            print(f"DEBUG [/generate]: Failed to inject brand_profile: {e}")
+    else:
+        print("DEBUG [/generate]: User has no brand_profile in DB!")
+    
     # Queue background task
     background_tasks.add_task(run_generation_task, task_id, news, user.id)
     

@@ -53,17 +53,40 @@ async def analyzer_node(state: AgentState) -> AgentState:
     if not news_text:
         return {"errors": ["No text provided and scraping failed."]}
 
-    # 2. Prepare Brand Context
-    brand_profile = news_input.brand_profile
+    # 2. Prepare Brand Context - ROBUST extraction
+    # news_input may be a Pydantic object OR a dict depending on LangGraph serialization
+    brand_profile = None
+    try:
+        bp = getattr(news_input, "brand_profile", None)
+        if not bp and isinstance(news_input, dict):
+            bp = news_input.get("brand_profile")
+        
+        if bp:
+            # bp could be BrandProfile object or dict
+            brand_profile = bp
+    except Exception as e:
+        print(f"DEBUG [Analyzer]: Error extracting brand_profile: {e}")
+    
     mode = state.get('mode', 'pr')
     target_brand = state.get('target_brand')
     
     brand_context = ""
     role_context = ""
     
+    # Helper for robust property access
+    def get_bp_prop(bp, prop):
+        val = getattr(bp, prop, None)
+        if val is None and isinstance(bp, dict):
+            val = bp.get(prop)
+        return val or ""
+    
     if mode == "blogger":
         # Blogger mode: analyzing news about a target brand
-        brand_name = target_brand or "Unknown Brand"
+        brand_name = target_brand
+        if not brand_name and brand_profile:
+            brand_name = get_bp_prop(brand_profile, "name")
+        brand_name = brand_name or "Unknown Brand"
+        
         role_context = f"""
         YOUR ROLE: You are a tech/business BLOGGER analyzing news about {brand_name}.
         You provide independent, objective analysis with your own opinion.
@@ -71,20 +94,25 @@ async def analyzer_node(state: AgentState) -> AgentState:
         if brand_profile:
             brand_context = f"""
             YOUR PERSONAL STYLE:
-            Tone of Voice: {brand_profile.tone_of_voice}
-            Target Audience: {brand_profile.target_audience}
+            Tone of Voice: {get_bp_prop(brand_profile, "tone_of_voice")}
+            Target Audience: {get_bp_prop(brand_profile, "target_audience")}
             """
     else:
         # PR mode: acting as the brand's voice
         if brand_profile:
+            bp_name = get_bp_prop(brand_profile, "name")
+            bp_desc = get_bp_prop(brand_profile, "description")
+            bp_tone = get_bp_prop(brand_profile, "tone_of_voice")
+            bp_audience = get_bp_prop(brand_profile, "target_audience")
+            
             brand_context = f"""
             BRAND PROFILE:
-            Name: {brand_profile.name}
-            Description: {brand_profile.description}
-            Tone of Voice: {brand_profile.tone_of_voice}
-            Target Audience: {brand_profile.target_audience}
+            Name: {bp_name}
+            Description: {bp_desc}
+            Tone of Voice: {bp_tone}
+            Target Audience: {bp_audience}
             """
-            role_context = f"YOUR ROLE: You are a PR Strategist for {brand_profile.name}."
+            role_context = f"YOUR ROLE: You are a PR Strategist for {bp_name}."
         else:
             role_context = "YOUR ROLE: You are a PR Strategist."
 

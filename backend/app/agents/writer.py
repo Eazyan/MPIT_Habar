@@ -43,13 +43,65 @@ def writer_node(state: AgentState) -> AgentState:
         brand_name = "Unknown Brand"
         
         if mode == "blogger":
-            brand_name = target_brand or "Unknown Brand"
+            brand_name = target_brand
+            # Fallback: If user didn't specify target brand, assume they want to blog about themselves
+            if not brand_name:
+                 # Try to get from BrandProfile
+                 try:
+                    inp = state.get("input")
+                    if inp:
+                         bp = getattr(inp, "brand_profile", None)
+                         if not bp and isinstance(inp, dict):
+                            bp = inp.get("brand_profile")
+                         
+                         if bp:
+                            candidate = getattr(bp, "name", None)
+                            if not candidate and isinstance(bp, dict):
+                                candidate = bp.get("name")
+                            if candidate:
+                                brand_name = candidate
+                 except:
+                    pass
+            
+            brand_name = brand_name or "Unknown Brand"
             role_description = f"You are a TECH/BUSINESS BLOGGER reviewing news about {brand_name}."
             voice_instruction = f"Write as an independent blogger giving your opinion on {brand_name}."
         else:
-            # PR mode
-            if state.get("input") and state["input"].brand_profile:
-                brand_name = state["input"].brand_profile.name
+            # PR mode - ROBUST extraction with VERBOSE DEBUG
+            try:
+                inp = state.get("input")
+                print(f"DEBUG [Writer]: inp = {inp}")
+                print(f"DEBUG [Writer]: inp type = {type(inp)}")
+                
+                if inp:
+                    # Handle both Object and Dict access
+                    bp = getattr(inp, "brand_profile", None)
+                    print(f"DEBUG [Writer]: bp via getattr = {bp}")
+                    
+                    if not bp and isinstance(inp, dict):
+                        bp = inp.get("brand_profile")
+                        print(f"DEBUG [Writer]: bp via dict.get = {bp}")
+                    
+                    if bp:
+                        print(f"DEBUG [Writer]: bp type = {type(bp)}")
+                        # Handle BrandProfile object or dict
+                        candidate = getattr(bp, "name", None)
+                        print(f"DEBUG [Writer]: name via getattr = {candidate}")
+                        
+                        if not candidate and isinstance(bp, dict):
+                            candidate = bp.get("name")
+                            print(f"DEBUG [Writer]: name via dict.get = {candidate}")
+                        
+                        if candidate:
+                            brand_name = candidate
+                    else:
+                        print("DEBUG [Writer]: bp is None/Empty!")
+                else:
+                    print("DEBUG [Writer]: inp is None!")
+            except Exception as e:
+                print(f"DEBUG [Writer]: EXCEPTION: {e}")
+            
+            print(f"DEBUG [Writer PR Mode]: FINAL Brand Name = {brand_name}")
             role_description = f"You are the Head of Communications for {brand_name}."
             voice_instruction = f"Write AS {brand_name}. You are the official voice of the brand."
 
