@@ -467,3 +467,35 @@ async def feedback(plan_id: str, like: bool, user: User = Depends(get_current_us
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
+
+# --- PUBLISH ENDPOINTS ---
+
+class PublishRequest(BaseModel):
+    content: str
+    platform: str
+
+@app.post("/publish/telegram")
+async def publish_telegram(req: PublishRequest, user: User = Depends(get_current_user)):
+    """
+    Sends the post content to user's linked Telegram chat.
+    Works as a "preview" - real channel posting requires bot to be admin in channel.
+    """
+    if not user.telegram_chat_id:
+        raise HTTPException(status_code=400, detail="Telegram не привязан. Используйте кнопку 'Подключить Telegram'.")
+    
+    # Send via Redis to the bot
+    message = {
+        "type": "publish",
+        "telegram_chat_id": user.telegram_chat_id,
+        "content": req.content,
+        "platform": req.platform
+    }
+    
+    try:
+        redis_client.publish("task_updates", json.dumps(message))
+        return {
+            "status": "sent",
+            "message": "Пост отправлен в Telegram! 📤\n\n💡 Совет: Добавьте бота (@RezonansAI_bot) админом в ваш канал для автоматической публикации."
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Ошибка отправки: {str(e)}")

@@ -200,8 +200,23 @@ async def notification_worker(bot: Bot):
                 
                 if chat_id:
                     chat_id = int(chat_id) # Ensure chat_id is an integer
+                    msg_type = data.get("type")
                     status = data.get("status")
-                    if status == "ready":
+                    
+                    # Handle PUBLISH messages
+                    if msg_type == "publish":
+                        content = data.get("content", "")
+                        platform = data.get("platform", "telegram")
+                        
+                        text = (
+                            f"📤 <b>Публикация ({platform.upper()})</b>\n\n"
+                            f"{content}\n\n"
+                            f"---\n"
+                            f"💡 <i>Добавьте бота админом в ваш канал для автопостинга!</i>"
+                        )
+                        await bot.send_message(chat_id, text, parse_mode="HTML")
+                    
+                    elif status == "ready":
                         # Format Rich Notification
                         score = data.get("score", 0)
                         verdict = data.get("verdict", "N/A")

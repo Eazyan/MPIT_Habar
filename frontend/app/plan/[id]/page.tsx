@@ -14,6 +14,7 @@ export default function PlanPage({ params }: { params: { id: string } }) {
     const [plan, setPlan] = useState<any>(null);
     const [regenerating, setRegenerating] = useState(false);
     const [imageLoading, setImageLoading] = useState(false);
+    const [publishing, setPublishing] = useState(false);
 
     const { isAuthenticated, isLoading } = useAuth();
     const router = useRouter();
@@ -47,8 +48,37 @@ export default function PlanPage({ params }: { params: { id: string } }) {
 
     const activePost = plan.posts.find((p: any) => p.platform === activeTab);
 
-    const handlePublish = (post: any) => {
-        window.open(`https://${post.platform}.com/share?text=${encodeURIComponent(post.content)}`, '_blank');
+
+
+    const handlePublish = async (post: any) => {
+        const platform = post.platform;
+        const content = post.content;
+
+        if (platform === "telegram") {
+            // Send to Telegram via backend
+            setPublishing(true);
+            try {
+                const { api } = await import("@/lib/api");
+                const res = await api.post("/publish/telegram", { content, platform });
+                alert(res.data.message);
+            } catch (e: any) {
+                alert(e.response?.data?.detail || "Ошибка публикации");
+            } finally {
+                setPublishing(false);
+            }
+        } else if (platform === "email" || platform === "press_release") {
+            // Open mailto: link with prefilled content
+            const subject = encodeURIComponent(plan.analysis?.summary?.substring(0, 50) || "Пресс-релиз");
+            const body = encodeURIComponent(content);
+            window.open(`mailto:?subject=${subject}&body=${body}`, '_blank');
+        } else if (platform === "vk") {
+            // VK share link
+            window.open(`https://vk.com/share.php?comment=${encodeURIComponent(content)}`, '_blank');
+        } else {
+            // Generic: copy to clipboard and notify
+            navigator.clipboard.writeText(content);
+            alert("Текст скопирован в буфер обмена! 📋");
+        }
     };
 
     const handleRegenerateImage = async (postIndex: number) => {
@@ -342,9 +372,13 @@ export default function PlanPage({ params }: { params: { id: string } }) {
                                     Нравится
                                 </button>
 
-                                <button className="bg-green-600 hover:bg-green-500 text-white font-bold py-4 rounded-xl shadow-lg shadow-green-500/20 transition-all flex items-center justify-center gap-2">
+                                <button
+                                    className="bg-green-600 hover:bg-green-500 text-white font-bold py-4 rounded-xl shadow-lg shadow-green-500/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                                    onClick={() => handlePublish(activePost)}
+                                    disabled={publishing || !activePost}
+                                >
                                     <Send className="w-5 h-5" />
-                                    Опубликовать
+                                    {publishing ? "Отправка..." : "Опубликовать"}
                                 </button>
                             </div>
                         </div>
